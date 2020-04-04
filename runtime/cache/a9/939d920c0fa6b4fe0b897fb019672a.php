@@ -1,0 +1,4 @@
+<?php
+//000000000000
+ exit();?>
+a:8:{i:0;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/59/62ccd748530d5866ded674e0247788.php";i:1;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/4d/ebc178cbdb9b7d1fc736ef8ee65e51.php";i:2;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/b6/2c1e2a759fad26f36b6705aeb096e7.php";i:3;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/3a/18e85fda2f43f200f015f30d0af45e.php";i:4;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/48/e345b986ae9584f9686dac64ea2c6a.php";i:5;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/57/e5830fa228be4a7d40bf40abfb7a18.php";i:6;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/e0/f15cee86afad4eabb0d5176f63c302.php";i:7;s:87:"/www/wwwroot/mini.xunmirensheng.com/runtime/cache/a6/d6181cf79cbad4a232ed9006617c00.php";}

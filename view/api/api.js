@@ -19,7 +19,9 @@ export function getIndexData()
 */
 export function getLogo()
 {
-  return request.get('wechat/get_logo', {}, { noAuth : true});
+  return request.get('wechat/get_logo', {}, {
+    noAuth : true
+  });
 }
 
 

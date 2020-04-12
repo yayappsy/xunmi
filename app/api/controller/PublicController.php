@@ -59,8 +59,8 @@ class PublicController
         $couponList = StoreCouponIssue::getIssueCouponList($request->uid(), 3);
         $subscribe = WechatUser::where('uid', $request->uid() ?? 0)->value('subscribe') ? true : false;
         $newGoodsBananr = sys_config('new_goods_bananr');
-//        return app('json')->successful(compact('banner', 'menus', 'roll', 'info', 'activity', 'lovely', 'benefit', 'likeInfo', 'logoUrl', 'couponList', 'site_name', 'subscribe','newGoodsBananr'));
-        return null;
+        return app('json')->successful(compact('banner', 'menus', 'roll', 'info', 'activity', 'lovely', 'benefit', 'likeInfo', 'logoUrl', 'couponList', 'site_name', 'subscribe','newGoodsBananr'));
+//        return null;
     }
 
     /**

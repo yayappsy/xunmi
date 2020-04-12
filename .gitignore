@@ -1,5 +1,6 @@
 /.idea
 /*.sql
 log
-/*.env
+/.env
 runtime
+/.example.env

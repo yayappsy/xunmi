@@ -103,9 +103,9 @@ class WechatController
         $name = 'follow';
         $siteUrl = sys_config('site_url');
         $imageUrl = $path . $name . '.' . $imageType;
-        if (file_exists($imageUrl)) {
-            return app('json')->success('ok', ['path' => $siteUrl . '/' . $imageUrl]);
-        }
+//        if (file_exists($imageUrl)) {
+//            return app('json')->success('ok', ['path' => $siteUrl . '/' . $imageUrl]);
+//        }
         $canvas->setImageUrl('static/qrcode/follow.png')->setImageHeight(720)->setImageWidth(500)->pushImageValue();
         $wechatQrcode = sys_config('wechat_qrcode');
         if (($strlen = stripos($wechatQrcode, 'uploads')) !== false) {

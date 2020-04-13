@@ -7,6 +7,7 @@
 
 namespace app\models\user;
 
+use app\models\store\StoreCouponIssue;
 use crmeb\basic\BaseModel;
 use crmeb\services\WechatService;
 use crmeb\traits\ModelTrait;
@@ -78,7 +79,7 @@ class WechatUser extends BaseModel
      */
     public static function routineOauth($routine)
     {
-        $routineInfo['nickname'] = filterEmoji($routine['nickName']);//姓名
+        $routineInfo['nickname'] = filter_emoji($routine['nickName']);//姓名
         $routineInfo['sex'] = $routine['gender'];//性别
         $routineInfo['language'] = $routine['language'];//语言
         $routineInfo['city'] = $routine['city'];//城市
@@ -156,16 +157,16 @@ class WechatUser extends BaseModel
         if (!isset($userInfo['subscribe']) || !$userInfo['subscribe'] || !isset($userInfo['openid']))
             exception('请关注公众号!');
         $userInfo['tagid_list'] = implode(',', $userInfo['tagid_list']);
-        $userInfo = is_object($userInfo) ? $userInfo->toArray() : $userInfo;
         //判断 unionid 是否存在
         if (isset($userInfo['unionid'])) {
             $wechatInfo = self::where('unionid', $userInfo['unionid'])->find();
+            unset($userInfo['qr_scene'],$userInfo['qr_scene_str'],$userInfo['qr_scene_str'],$userInfo['subscribe_scene']);
             if ($wechatInfo) {
-                return self::edit($userInfo, $userInfo['unionid'], 'unionid');
+                return self::edit($userInfo->toArray(), $userInfo['unionid'], 'unionid');
             }
         }
         self::beginTrans();
-        $wechatUser = self::create($userInfo);
+        $wechatUser = self::create(is_object($userInfo) ? $userInfo->toArray() : $userInfo);
         if (!$wechatUser) {
             self::rollbackTrans();
             exception('用户储存失败!');
@@ -185,18 +186,31 @@ class WechatUser extends BaseModel
      */
     public static function userFirstSubGiveCoupon($openid)
     {
-        $couponId = sysConfig('wechat_first_sub_give_coupon');
-        if ($couponId) StoreCouponUser::addUserCoupon(self::openidToUid($openid), $couponId);
+        $couponIds = StoreCouponIssue::where('status',1)
+            ->where('is_give_subscribe',1)
+            ->where('is_del',0)
+            ->column('cid');
+        if ($couponIds)
+            foreach ($couponIds as $couponId)
+                if ($couponId)
+                    StoreCouponUser::addUserCoupon(self::openidToUid($openid), $couponId);
     }
 
     /**
      * 订单金额达到预设金额赠送优惠卷
      * @param $uid
      */
-    public static function userTakeOrderGiveCoupon($uid)
+    public static function userTakeOrderGiveCoupon($uid,$total_price)
     {
-        $couponId = sysConfig('store_order_give_coupon');
-        if ($couponId) StoreCouponUser::addUserCoupon($uid, $couponId);
+        $couponIds = StoreCouponIssue::where('status',1)
+            ->where('is_full_give',1)
+            ->where('is_del',0)
+            ->column('cid,full_reduction');
+        if ($couponIds)
+            foreach ($couponIds as $couponId)
+                if ($couponId)
+                    if ($total_price >= $couponId['full_reduction'])
+                        StoreCouponUser::addUserCoupon($uid, $couponId['cid']);
     }
 
     /**

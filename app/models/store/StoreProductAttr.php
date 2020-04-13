@@ -43,10 +43,10 @@ class StoreProductAttr extends BaseModel
      * @param $productId
      * @return array
      */
-    public static function getProductAttrDetail($productId,$uid=0,$type = 0)
+    public static function getProductAttrDetail($productId,$uid=0,$type = 0,$type_id=0)
     {
-        $attrDetail = self::where('product_id',$productId)->order('attr_values asc')->select()->toArray()?:[];
-        $_values = self::storeProductAttrValueDb()->where('product_id',$productId)->select();
+        $attrDetail = self::where('product_id',$productId)->where('type',$type_id)->order('attr_values asc')->select()->toArray()?:[];
+        $_values = self::storeProductAttrValueDb()->where('product_id',$productId)->where('type',$type_id)->select();
         $values = [];
         foreach ($_values as $value){
             if($type){
@@ -81,9 +81,10 @@ class StoreProductAttr extends BaseModel
 
     public static function issetProductUnique($productId,$unique)
     {
-        $res = self::be(['product_id'=>$productId]);
+//        $res = self::be(['product_id'=>$productId]);
+        $res = self::where('product_id',$productId)->where('type',0)->find();
         if($unique){
-            return $res && self::storeProductAttrValueDb()->where('product_id',$productId)->where('unique',$unique)->count() > 0;
+            return $res && self::storeProductAttrValueDb()->where('product_id',$productId)->where('unique',$unique)->where('type',0)->count() > 0;
         }else{
             return !$res;
         }

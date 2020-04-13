@@ -88,7 +88,7 @@ export default {
   props: {},
   data: function() {
     return {
-      census: [],
+      census: {},
       list: [],
       where: {
         page: 1,

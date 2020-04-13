@@ -3,36 +3,24 @@
 namespace app\api\controller\user;
 
 use app\http\validates\user\AddressValidate;
+use app\models\system\SystemCity;
 use think\exception\ValidateException;
 use app\Request;
-use crmeb\services\ExpressService as Express;
-use app\admin\model\system\SystemAttachment;
-use app\models\routine\RoutineQrcode;
 use app\models\user\UserLevel;
 use app\models\user\UserSign;
-use app\models\routine\RoutineCode;
-use app\models\routine\RoutineFormId;
 use app\models\store\StoreBargain;
 use app\models\store\StoreCombination;
 use app\models\store\StoreCouponUser;
 use app\models\store\StoreOrder;
-use app\models\store\StoreOrderCartInfo;
 use app\models\store\StoreProductRelation;
-use app\models\store\StoreProductReply;
 use app\models\store\StoreSeckill;
 use app\models\user\User;
 use app\models\user\UserAddress;
 use app\models\user\UserBill;
 use app\models\user\UserExtract;
 use app\models\user\UserNotice;
-use app\models\user\UserRecharge;
-use crmeb\services\CacheService;
 use crmeb\services\GroupDataService;
-use crmeb\services\SystemConfigService;
-use crmeb\services\UploadService;
 use crmeb\services\UtilService;
-use think\facade\Cache;
-use think\facade\Db;
 
 /**
  * 用户类
@@ -49,7 +37,26 @@ class UserController
      */
     public function userInfo(Request $request)
     {
-        return app('json')->success($request->user()->toArray());
+        $info = $request->user()->toArray();
+        $broken_time = intval(sys_config('extract_time'));
+        $search_time = time() - 86400 * $broken_time;
+        //返佣 +
+        $brokerage_commission = UserBill::where(['uid' => $info['uid'], 'category' => 'now_money', 'type' => 'brokerage'])
+            ->where('add_time', '>', $search_time)
+            ->where('pm', 1)
+            ->sum('number');
+        //退款退的佣金 -
+        $refund_commission = UserBill::where(['uid' => $info['uid'], 'category' => 'now_money', 'type' => 'brokerage'])
+            ->where('add_time', '>', $search_time)
+            ->where('pm', 0)
+            ->sum('number');
+        $info['broken_commission'] = bcsub($brokerage_commission, $refund_commission, 2);
+        if ($info['broken_commission'] < 0)
+            $info['broken_commission'] = 0;
+        $info['commissionCount'] = bcsub($info['brokerage_price'], $info['broken_commission'], 2);
+        if ($info['commissionCount'] < 0)
+            $info['commissionCount'] = 0;
+        return app('json')->success($info);
     }
 
     /**
@@ -83,13 +90,43 @@ class UserController
         $user['like'] = StoreProductRelation::getUserIdCollect($user['uid']);
         $user['orderStatusNum'] = StoreOrder::getOrderData($user['uid']);
         $user['notice'] = UserNotice::getNotice($user['uid']);
-        $user['brokerage'] = UserBill::getBrokerage($user['uid']);//获取总佣金
+//        $user['brokerage'] = UserBill::getBrokerage($user['uid']);//获取总佣金
         $user['recharge'] = UserBill::getRecharge($user['uid']);//累计充值
         $user['orderStatusSum'] = StoreOrder::getOrderStatusSum($user['uid']);//累计消费
         $user['extractTotalPrice'] = UserExtract::userExtractTotalPrice($user['uid']);//累计提现
         $user['extractPrice'] = $user['brokerage_price'];//可提现
-        $user['statu'] = (int)SystemConfigService::get('store_brokerage_statu');
-        if (!SystemConfigService::get('vip_open'))
+        $user['statu'] = (int)sys_config('store_brokerage_statu');
+        $broken_time = intval(sys_config('extract_time'));
+        $search_time = time() - 86400 * $broken_time;
+        if (!$user['is_promoter'] && $user['statu'] == 2) {
+            $price = StoreOrder::where(['paid' => 1, 'refund_status' => 0, 'uid' => $user['uid']])->sum('pay_price');
+            $status = is_brokerage_statu($price);
+            if ($status) {
+                User::where('uid', $user['uid'])->update(['is_promoter' => 1]);
+                $user['is_promoter'] = 1;
+            } else {
+                $storeBrokeragePrice = sys_config('store_brokerage_price', 0);
+                $user['promoter_price'] = bcsub($storeBrokeragePrice, $price, 2);
+            }
+        }
+        //可提现佣金
+        //返佣 +
+        $brokerage_commission = UserBill::where(['uid' => $user['uid'], 'category' => 'now_money', 'type' => 'brokerage'])
+            ->where('add_time', '>', $search_time)
+            ->where('pm', 1)
+            ->sum('number');
+        //退款退的佣金 -
+        $refund_commission = UserBill::where(['uid' => $user['uid'], 'category' => 'now_money', 'type' => 'brokerage'])
+            ->where('add_time', '>', $search_time)
+            ->where('pm', 0)
+            ->sum('number');
+        $user['broken_commission'] = bcsub($brokerage_commission, $refund_commission, 2);
+        if ($user['broken_commission'] < 0)
+            $user['broken_commission'] = 0;
+        $user['commissionCount'] = bcsub($user['brokerage_price'], $user['broken_commission'], 2);
+        if ($user['commissionCount'] < 0)
+            $user['commissionCount'] = 0;
+        if (!sys_config('vip_open'))
             $user['vip'] = false;
         else {
             $vipId = UserLevel::getUserLevel($user['uid']);
@@ -101,7 +138,7 @@ class UserController
             }
         }
         $user['yesterDay'] = UserBill::yesterdayCommissionSum($user['uid']);
-        $user['recharge_switch'] = (int)SystemConfigService::get('recharge_switch');//充值开关
+        $user['recharge_switch'] = (int)sys_config('recharge_switch');//充值开关
         $user['adminid'] = (boolean)\app\models\store\StoreService::orderServiceStatus($user['uid']);
         if ($user['phone'] && $user['user_type'] != 'h5') {
             $user['switchUserInfo'][] = $request->user();
@@ -200,17 +237,33 @@ class UserController
             ['post_code', ''],
             ['phone', ''],
             ['detail', ''],
-            ['id', 0]
+            ['id', 0],
+            ['type', 0]
         ], $request);
         if (!isset($addressInfo['address']['province'])) return app('json')->fail('收货地址格式错误!');
         if (!isset($addressInfo['address']['city'])) return app('json')->fail('收货地址格式错误!');
         if (!isset($addressInfo['address']['district'])) return app('json')->fail('收货地址格式错误!');
+        if (!isset($addressInfo['address']['city_id']) && $addressInfo['type'] == 0) {
+            return app('json')->fail('收货地址格式错误!请重新选择!');
+        } else if ($addressInfo['type'] == 1 && !$addressInfo['id']) {
+            $city = $addressInfo['address']['city'];
+            $cityId = SystemCity::where('name', $city)->where('parent_id', '<>', 0)->value('city_id');
+            if ($cityId) {
+                $addressInfo['address']['city_id'] = $cityId;
+            } else {
+                if (!($cityId = SystemCity::where('parent_id', '<>', 0)->where('name', 'like', "%$city%")->value('city_id'))) {
+                    return app('json')->fail('收货地址格式错误!修改后请重新导入!');
+                }
+            }
+        }
+
         $addressInfo['province'] = $addressInfo['address']['province'];
         $addressInfo['city'] = $addressInfo['address']['city'];
+        $addressInfo['city_id'] = $addressInfo['address']['city_id'] ?? 0;
         $addressInfo['district'] = $addressInfo['address']['district'];
         $addressInfo['is_default'] = (int)$addressInfo['is_default'] == true ? 1 : 0;
         $addressInfo['uid'] = $request->uid();
-        unset($addressInfo['address']);
+        unset($addressInfo['address'], $addressInfo['type']);
         try {
             validate(AddressValidate::class)->check($addressInfo);
         } catch (ValidateException $e) {
@@ -362,7 +415,7 @@ class UserController
      */
     public function sign_config()
     {
-        $signConfig = GroupDataService::getData('sign_day_num') ?? [];
+        $signConfig = sys_data('sign_day_num') ?? [];
         return app('json')->successful($signConfig);
     }
 
@@ -429,7 +482,7 @@ class UserController
         }
         unset($user['pwd']);
         if (!$user['is_promoter']) {
-            $user['is_promoter'] = (int)SystemConfigService::get('store_brokerage_statu') == 2 ? true : false;
+            $user['is_promoter'] = (int)sys_config('store_brokerage_statu') == 2 ? true : false;
         }
         return app('json')->successful($user->hidden(['account', 'real_name', 'birthday', 'card_id', 'mark', 'partner_id', 'group_id', 'add_time', 'add_ip', 'phone', 'last_time', 'last_ip', 'spread_uid', 'spread_time', 'user_type', 'status', 'level', 'clean_time', 'addres'])->toArray());
     }

@@ -7,6 +7,8 @@
 
 namespace app\models\store;
 
+use app\admin\model\store\StoreProductAttrValue;
+use app\admin\model\system\SystemGroupData;
 use crmeb\basic\BaseModel;
 use crmeb\services\UtilService;
 use crmeb\traits\ModelTrait;
@@ -49,18 +51,35 @@ class StoreCart extends BaseModel
             $userbuycount = StoreOrder::where('uid', $uid)->where('paid', 1)->where('seckill_id', $seckill_id)->count();
             if($StoreSeckillinfo['num'] <= $userbuycount || $StoreSeckillinfo['num'] < $cart_num)
                 return self::setErrorInfo('每人限购'.$StoreSeckillinfo['num'].'件');
-            if(StoreSeckill::getProductStock($seckill_id) < $cart_num)
+            $res = StoreProductAttrValue::where('product_id',$seckill_id)->where('unique',$product_attr_unique)->where('type',1)->field('suk,quota')->find();
+            if($cart_num > $res['quota'])
+                return self::setErrorInfo('该产品库存不足'.$cart_num);
+            $product_stock = StoreProductAttrValue::where('product_id',$StoreSeckillinfo['product_id'])->where('suk',$res['suk'])->where('type',0)->value('stock');
+            if($product_stock < $cart_num)
                 return self::setErrorInfo('该产品库存不足'.$cart_num);
         }elseif($bargain_id){
             if(!StoreBargain::validBargain($bargain_id))
                 return self::setErrorInfo('该产品已下架或删除');
-            if(StoreBargain::getBargainStock($bargain_id) < $cart_num)
+            $StoreBargainInfo = StoreBargain::getBargain($bargain_id);
+            $res = StoreProductAttrValue::where('product_id',$bargain_id)->where('type',2)->field('suk,quota')->find();
+            if($cart_num > $res['quota'])
+                return self::setErrorInfo('该产品库存不足'.$cart_num);
+            $product_stock = StoreProductAttrValue::where('product_id',$StoreBargainInfo['product_id'])->where('suk',$res['suk'])->where('type',0)->value('stock');
+            if($product_stock < $cart_num)
                 return self::setErrorInfo('该产品库存不足'.$cart_num);
         }elseif($combination_id){//拼团
-            if(!StoreCombination::getCombinationStock($combination_id,$cart_num))
-                return self::setErrorInfo('该产品库存不足'.$cart_num);
-            if(!StoreCombination::isValidCombination($combination_id))
+            $StoreCombinationInfo = StoreCombination::getCombinationOne($combination_id);
+            if(!$StoreCombinationInfo)
                 return self::setErrorInfo('该产品已下架或删除');
+            $userbuycount = StoreOrder::where('uid', $uid)->where('paid', 1)->where('combination_id', $combination_id)->count();
+            if($StoreCombinationInfo['num'] <= $userbuycount || $StoreCombinationInfo['num'] < $cart_num)
+                return self::setErrorInfo('每人限购'.$StoreCombinationInfo['num'].'件');
+            $res = StoreProductAttrValue::where('product_id',$combination_id)->where('unique',$product_attr_unique)->where('type',3)->field('suk,quota')->find();
+            if($cart_num > $res['quota'])
+                return self::setErrorInfo('该产品库存不足'.$cart_num);
+            $product_stock = StoreProductAttrValue::where('product_id',$StoreCombinationInfo['product_id'])->where('suk',$res['suk'])->where('type',0)->value('stock');
+            if($product_stock < $cart_num)
+                return self::setErrorInfo('该产品库存不足'.$cart_num);
         }else{
             if(!StoreProduct::isValidProduct($product_id))
                 return self::setErrorInfo('该产品已下架或删除');
@@ -136,10 +155,10 @@ class StoreCart extends BaseModel
 
     public static function getUserProductCartList($uid,$cartIds='',$status=0)
     {
-        $productInfoField = 'id,image,price,ot_price,vip_price,postage,give_integral,sales,stock,store_name,unit_name,is_show,is_del,is_postage,cost';
-        $seckillInfoField = 'id,image,price,ot_price,postage,give_integral,sales,stock,title as store_name,unit_name,is_show,is_del,is_postage,cost';
-        $bargainInfoField = 'id,image,min_price as price,price as ot_price,postage,give_integral,sales,stock,title as store_name,unit_name,status as is_show,is_del,is_postage,cost';
-        $combinationInfoField = 'id,image,price,postage,sales,stock,title as store_name,is_show,is_del,is_postage,cost';
+        $productInfoField = 'id,image,price,ot_price,vip_price,postage,give_integral,sales,stock,store_name,unit_name,is_show,is_del,is_postage,cost,is_sub,temp_id';
+        $seckillInfoField = 'id,image,price,ot_price,postage,give_integral,sales,stock,title as store_name,unit_name,is_show,is_del,is_postage,cost,temp_id,weight,volume,start_time,stop_time,time_id';
+        $bargainInfoField = 'id,image,min_price as price,price as ot_price,postage,give_integral,sales,stock,title as store_name,unit_name,status as is_show,is_del,is_postage,cost,temp_id,weight,volume';
+        $combinationInfoField = 'id,image,price,postage,sales,stock,title as store_name,is_show,is_del,is_postage,cost,temp_id,weight,volume';
         $model = new self();
         $valid = $invalid = [];
         $model = $model->where('uid',$uid)->where('type','product')->where('is_pay',0)
@@ -149,6 +168,7 @@ class StoreCart extends BaseModel
         $model = $model->order('add_time DESC');
         $list = $model->select()->toArray();
         if(!count($list)) return compact('valid','invalid');
+        $now = time();
         foreach ($list as $k=>$cart){
             if($cart['seckill_id']){
                 $product = StoreSeckill::field($seckillInfoField)
@@ -163,19 +183,46 @@ class StoreCart extends BaseModel
                 $product = StoreProduct::field($productInfoField)
                     ->find($cart['product_id'])->toArray();
             }
-            $product['image'] = UtilService::setSiteUrl($product['image']);
+            $product['image'] = set_file_url($product['image']);
             $cart['productInfo'] = $product;
+
             //商品不存在
             if(!$product){
                 $model->where('id',$cart['id'])->update(['is_del'=>1]);
             //商品删除或无库存
-            }else if(!$product['is_show'] || $product['is_del'] || !$product['stock']){
+            }else if(!$product['is_show'] || $product['is_del'] || !$product['stock']) {
                 $invalid[] = $cart;
-            //商品属性不对应
-            }else if(!StoreProductAttr::issetProductUnique($cart['product_id'],$cart['product_attr_unique']) && !$cart['combination_id'] && !$cart['seckill_id']&& !$cart['bargain_id']){
+
+            //秒杀产品未开启或者已结束
+            } else if ($cart['seckill_id'] && ($product['start_time'] > $now || $product['stop_time'] < $now-86400)) {
+                $invalid[] = $product;
+                //商品属性不对应
+            } else if(!StoreProductAttr::issetProductUnique($cart['product_id'],$cart['product_attr_unique']) && !$cart['combination_id'] && !$cart['seckill_id']&& !$cart['bargain_id']){
                 $invalid[] = $cart;
             //正常商品
             }else{
+
+                if ($cart['seckill_id']) {
+                    $config = SystemGroupData::get($product['time_id']);
+                    if ($config) {
+                        $arr = json_decode($config->value, true);
+                        $now_hour = date('H', time());
+                        $start_hour = $arr['time']['value'];
+                        $continued = $arr['continued']['value'];
+                        $end_hour = $start_hour + $continued;
+                        if ($start_hour > $now_hour) {
+                            //'活动未开启';
+                            $invalid[] = $cart;
+                            continue;
+                        } elseif ($end_hour < $now_hour) {
+                            //'活动已结束';
+                            $invalid[] = $cart;
+                            continue;
+                        }
+                    }
+
+                }
+
                 if($cart['product_attr_unique']){
                     $attrInfo = StoreProductAttr::uniqueByAttrInfo($cart['product_attr_unique']);
                     //商品没有对应的属性
@@ -199,6 +246,11 @@ class StoreCart extends BaseModel
                     if($cart['combination_id'] || $cart['seckill_id'] || $cart['bargain_id']) {
                         $cart['truePrice'] = $cart['productInfo']['price'];
                         $cart['vip_truePrice'] = 0;
+                        if($cart['bargain_id']){
+                            $cart['productInfo']['attrInfo'] = StoreProductAttrValue::where('product_id',$cart['bargain_id'])->where('type',2)->find();
+                        }
+                        $cart['productInfo']['attrInfo']['weight'] = $product['weight'];
+                        $cart['productInfo']['attrInfo']['volume'] = $product['volume'];
                     }else {
                         $cart['truePrice'] = (float)StoreProduct::setLevelPrice($cart['productInfo']['price'],$uid,true);
                         $cart['vip_truePrice'] = (float)StoreProduct::setLevelPrice($cart['productInfo']['price'], $uid);

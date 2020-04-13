@@ -172,6 +172,7 @@
               @click="
                 $router.push({ path: '/order/logistics/' + order.order_id })
               "
+              v-if="order.delivery_type === 'express'"
             >
               查看物流
             </div>
@@ -217,6 +218,11 @@
       @checked="toPay"
       :balance="userInfo.now_money"
     ></Payment>
+    <GeneralWindow
+      :generalActive="generalActive"
+      @closeGeneralWindow="closeGeneralWindow"
+      :generalContent="generalContent"
+    ></GeneralWindow>
   </div>
 </template>
 <script>
@@ -230,6 +236,7 @@ import Loading from "@components/Loading";
 import Payment from "@components/Payment";
 import { mapGetters } from "vuex";
 import { isWeixin } from "@utils";
+import GeneralWindow from "@components/GeneralWindow";
 
 const STATUS = [
   "待付款",
@@ -260,12 +267,18 @@ export default {
       orderList: [],
       pay: false,
       payType: ["yue", "weixin"],
-      from: isWeixin() ? "weixin" : "weixinh5"
+      from: isWeixin() ? "weixin" : "weixinh5",
+      generalActive: false,
+      generalContent: {
+        promoterNum: "",
+        title: ""
+      }
     };
   },
   components: {
     Loading,
-    Payment
+    Payment,
+    GeneralWindow
   },
   computed: mapGetters(["userInfo"]),
   watch: {
@@ -295,10 +308,69 @@ export default {
       });
     },
     takeOrder(order) {
-      takeOrderHandle(order.order_id).finally(() => {
-        this.reload();
-        this.getOrderData();
-      });
+      this.$dialog.loading.open("正在加载中");
+      takeOrderHandle(order.order_id)
+        .then(res => {
+          if (
+            (res.data.gain_integral != "0.00" &&
+              res.data.gain_coupon != "0.00") ||
+            (res.data.gain_integral > 0 && res.data.gain_coupon > 0)
+          ) {
+            this.$dialog.loading.close();
+            this.generalActive = true;
+            this.generalContent = {
+              promoterNum: `恭喜您获得${res.data.gain_coupon}元优惠券以及${
+                res.data.gain_integral
+              }积分，购买商品时可抵现哦～`,
+              title: "恭喜您获得优惠礼包"
+            };
+            return;
+          } else if (
+            res.data.gain_integral != "0.00" ||
+            res.data.gain_integral > 0
+          ) {
+            this.$dialog.loading.close();
+            this.generalActive = true;
+            this.generalContent = {
+              promoterNum: `恭喜您获得${
+                res.data.gain_integral
+              }积分，购买商品时可抵现哦～`,
+              title: "赠送积分"
+            };
+            return;
+          } else if (
+            res.data.gain_coupon != "0.00" ||
+            res.data.gain_coupon > 0
+          ) {
+            this.$dialog.loading.close();
+            this.generalActive = true;
+            this.generalContent = {
+              promoterNum: `恭喜您获得${
+                res.data.gain_coupon
+              }元优惠券，购买商品时可抵现哦～`,
+              title: "恭喜您获得优惠券"
+            };
+            return;
+          } else {
+            this.$dialog.loading.close();
+            this.$dialog.success("收货成功");
+          }
+          this.getOrderData();
+          this.orderList = [];
+          this.page = 1;
+          this.loaded = false;
+          this.loading = false;
+          this.getOrderList();
+        })
+        .catch(err => {
+          this.$dialog.loading.close();
+          this.$dialog.error(err.msg);
+        });
+    },
+    closeGeneralWindow(msg) {
+      this.generalActive = msg;
+      this.reload();
+      this.getOrderData();
     },
     reload() {
       this.changeType(this.type);
@@ -332,6 +404,7 @@ export default {
     cancelOrder(order) {
       cancelOrderHandle(order.order_id)
         .then(() => {
+          this.getOrderData();
           this.orderList.splice(this.orderList.indexOf(order), 1);
         })
         .catch(() => {

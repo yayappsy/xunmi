@@ -126,9 +126,11 @@
                     </div>
                     <div class="layui-card-body clearfix image-box" style="padding: 10px;height: 360px;z-index:10;">
                         <div class="layui-col-md2 layui-col-xs2 layui-col-sm2 image" v-for="(item,index) in imageList">
+                            <span class="layui-badge layui-bg-cyan" style="position: absolute;" v-if="item.sort">{{ item.sort }}</span>
                             <div class="layui-img-box"  :class="item.isSelect ? 'on': '' ">
-                                <img :src="item.att_dir" v-if="small == 1" @click="changImage(item,index)">
-                                <img :src="item.att_dir" v-else @click="changImage(item,index)">
+
+                                <img :src="item.att_dir" v-if="small == 1" @click="changImage(item)">
+                                <img :src="item.att_dir" v-else @click="changImage(item)">
                             </div>
                         </div>
                         <div class="empty-image" style="width: 100%;height: 100%;text-align: center;" v-if="!imageList.length && loading == false">
@@ -186,6 +188,8 @@
                 }, function(){
                     layList.basePost(that.U({a:'delete'}),{imageid:that.selectImagesIDS},function (res) {
                         layList.msg(res.msg);
+                        that.selectImagesIDS = [];
+                        that.selectImages = [];
                         that.getImageList();
                     },function (res) {
                         layList.msg(res.msg);
@@ -242,6 +246,22 @@
                         parent.$f.closeModal(parentinputname);
                     }else{
                         //独立图片选择页面
+                        if(parentinputname == 'image' && this.selectImages.length > 1) {
+                            return layList.msg('最多只能选择1张');
+                        }
+                        if(parent.$vm){
+                            var rule = parent.$vm.getRule(parentinputname)
+                            if(rule.maxLength !== undefined){
+                                if(this.selectImages.length > rule.maxLength){
+                                    return layList.msg('最多只能选择'+rule.maxLength+'张');
+                                }
+                                parent.changeIMG(parentinputname,this.selectImages);
+                                var index = parent.layer.getFrameIndex(window.name);
+                                parent.layer.close(index);
+                                return;
+                            }
+
+                        }
                         parent.changeIMG(parentinputname,this.selectImages[0]);
                         var index = parent.layer.getFrameIndex(window.name);
                         parent.layer.close(index);
@@ -251,17 +271,25 @@
             },
             //图片选中和取消
             changImage:function(item,index){
-                var len = this.imageList.length,selectImages=[],selectImagesIDS=[];
-
-                this.$set(this.imageList[index],'isSelect',item.isSelect == undefined ? true : !item.isSelect);
-                for (var i=0;i<len;i++){
-                    if(this.imageList[i].isSelect === true) {
-                        selectImages.push(small == 1 ? this.imageList[i]['satt_dir'] : this.imageList[i]['att_dir']);
-                        selectImagesIDS.push(this.imageList[i]['att_id']);
+                this.$set(item,'isSelect',item.isSelect == undefined ? true : !item.isSelect);
+                var val = small == 1 ? item['satt_dir'] : item['att_dir'];
+                if(item.isSelect === true) {
+                    this.selectImages[this.selectImages.length] = val;
+                    this.selectImagesIDS[this.selectImages.length] = item['att_id'];
+                    item.sort = this.selectImages.length;
+                }else{
+                    this.selectImages.splice(this.selectImages.indexOf(val),1);
+                    this.selectImagesIDS.splice(this.selectImages.indexOf(item['att_id']),1);
+                    for (var i=0;i<this.imageList.length;i++){
+                        if(this.imageList[i].sort > item.sort) {
+                            this.imageList[i].sort = (this.imageList[i].sort-1)>=0? this.imageList[i].sort-1 : 0;
+                        }
                     }
+                    item.sort = 0;
                 }
-                this.$set(this,'selectImages',selectImages);
-                this.$set(this,'selectImagesIDS',selectImagesIDS);
+//                console.log(this.selectImagesIDS)
+                this.$set(this,'selectImages',this.selectImages);
+                this.$set(this,'selectImagesIDS',this.selectImagesIDS);
             },
             //获取图片列表
             getImageList:function(){

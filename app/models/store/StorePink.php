@@ -38,11 +38,11 @@ class StorePink extends BaseModel
 
     use ModelTrait;
 
-    /*
+    /**
      * 获取拼团完成的用户
-     * @param int $uid 用户id
+     * @param $uid
      * @return array
-     * */
+     */
     public static function getPinkOkList($uid)
     {
         $list = self::alias('a')->where('a.status', 2)->where('a.is_refund', 0)->where('a.uid', '<>', $uid)->join('User u', 'u.uid=a.uid', 'right')->column('nickname', 'id');
@@ -142,6 +142,9 @@ class StorePink extends BaseModel
 
     /**
      * 获取还差几人
+     * @param $kid
+     * @param $people
+     * @return string
      */
     public static function getPinkPeople($kid, $people)
     {

@@ -85,7 +85,7 @@ export default [
     component: () => import("@views/activity/GoodsSeckill.vue")
   },
   {
-    path: "/activity/seckill_detail/:id?/:time",
+    path: "/activity/seckill_detail/:id?/:time?/:status?",
     name: "SeckillDetails",
     meta: {
       title: "抢购详情页",

@@ -231,7 +231,8 @@ export default {
           x: 30,
           x2: 10,
           y: 20,
-          y2: 110
+          y2: 110,
+          left: 40
         },
         animationDuration: 2000
       },
@@ -261,7 +262,9 @@ export default {
       loading: false,
       filter: {
         page: 1,
-        limit: 10
+        limit: 10,
+        start: "",
+        stop: ""
       },
       list: []
     };
@@ -320,6 +323,10 @@ export default {
       var year = new Date().getFullYear(),
         month = new Date().getMonth() + 1,
         day = new Date().getDate();
+      this.list = [];
+      this.filter.page = 1;
+      this.loaded = false;
+      this.loading = false;
       switch (time) {
         case "today":
           this.where.start =
@@ -332,6 +339,7 @@ export default {
             1;
           this.title = "今日";
           this.getIndex();
+          this.getInfo();
           break;
         case "yesterday":
           this.where.start =
@@ -344,6 +352,7 @@ export default {
             1;
           this.title = "昨日";
           this.getIndex();
+          this.getInfo();
           break;
         case "month":
           this.where.start =
@@ -351,13 +360,14 @@ export default {
           this.where.stop = new Date(year, month, 1).getTime() / 1000 - 1;
           this.title = "本月";
           this.getIndex();
+          this.getInfo();
           break;
         case "seven":
           this.where.start =
             new Date(Date.parse(year + "/" + month + "/" + day)).getTime() /
               1000 +
             24 * 60 * 60 -
-            7 * 3600;
+            7 * 3600 * 24;
           this.where.stop =
             new Date(Date.parse(year + "/" + month + "/" + day)).getTime() /
               1000 +
@@ -365,6 +375,7 @@ export default {
             1;
           this.title = "七日";
           this.getIndex();
+          this.getInfo();
           break;
       }
     },
@@ -379,8 +390,8 @@ export default {
       }
     },
     clickSomeThing(data) {
-      this.value = [[2019, 4, 1], [2019, 4, 8]];
       console.log(data);
+      this.value = [[2019, 4, 1], [2019, 4, 8]];
     },
     setMonthRange() {
       this.monthRange = this.monthRange.length ? [] : ["2019-4", "2020-1"];
@@ -466,6 +477,10 @@ export default {
         this.where.start != new Date(val) / 1000 ||
         this.where.stop != new Date(val2) / 1000 + 24 * 60 * 60 - 1
       ) {
+        this.list = [];
+        this.filter.page = 1;
+        this.loaded = false;
+        this.loading = false;
         this.time = "date";
         this.title = "";
         this.where.start =
@@ -479,6 +494,7 @@ export default {
           24 * 60 * 60 -
           1;
         this.getIndex();
+        this.getInfo();
       }
     },
     dateTitle: function() {
@@ -491,6 +507,8 @@ export default {
       var that = this;
       if (that.loading || that.loaded) return;
       that.loading = true;
+      that.filter.start = that.where.start;
+      that.filter.stop = that.where.stop;
       getStatisticsMonth(that.filter).then(
         res => {
           that.loading = false;
@@ -516,7 +534,7 @@ export default {
   bottom: 0;
   left: 0;
   width: 100%;
-  z-index: 66;
+  z-index: 777;
   transform: translate3d(0, 100%, 0);
   transition: all 0.3s cubic-bezier(0.25, 0.5, 0.5, 0.9);
 }

@@ -124,8 +124,11 @@ trait ModelTrait
             $limit = $params;
             $params = [];
         }
-
-        $paginate = $model === null ? self::paginate($limit, false, ['query' => $params]) : $model->paginate($limit, false, ['query' => $params]);
+        $listRows = [
+            'list_rows' => $limit,
+            'query' => $params
+        ];
+        $paginate = $model === null ? self::paginate($listRows, false) : $model->paginate($listRows, false);
         $list = is_callable($eachFn) ? $paginate->each($eachFn) : $paginate;
         $page = $list->render();
         $total = $list->total();

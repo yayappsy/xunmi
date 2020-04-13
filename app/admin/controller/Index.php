@@ -2,18 +2,12 @@
 
 namespace app\admin\controller;
 
-use app\admin\model\store\StoreProduct;
-use app\admin\model\system\SystemConfig;
-use app\admin\model\system\SystemMenus;
-use app\admin\model\system\SystemRole;
-use app\admin\model\order\StoreOrder as StoreOrderModel;//订单
-use app\admin\model\user\User;
-use app\admin\model\user\UserExtract as UserExtractModel;//分销
-use app\admin\model\user\User as UserModel;//用户
-use app\admin\model\store\StoreProductReply as StoreProductReplyModel;//评论
-use app\admin\model\store\StoreProduct as ProductModel;//产品
 use FormBuilder\Json;
 use think\facade\Config;
+use app\admin\model\order\StoreOrder as StoreOrderModel;//订单
+use app\admin\model\system\{SystemConfig, SystemMenus, SystemRole};
+use app\admin\model\user\{User, UserExtract as UserExtractModel, User as UserModel};
+use app\admin\model\store\{StoreProduct, StoreProductReply as StoreProductReplyModel, StoreProduct as ProductModel};
 
 /**
  * 首页控制器
@@ -29,6 +23,7 @@ class Index extends AuthController
         $adminInfo = $this->adminInfo->toArray();
         $roles = explode(',', $adminInfo['roles']);
         $site_logo = SystemConfig::getOneConfig('menu_name', 'site_logo')->toArray();
+
         $this->assign([
             'menuList' => SystemMenus::menuList(),
             'site_logo' => json_decode($site_logo['value'], true),
@@ -52,13 +47,15 @@ class Index extends AuthController
         $topData['orderDeliveryNum'] = StoreOrderModel::where('status', 0)
             ->where('paid', 1)
             ->where('refund_status', 0)
+            ->where('shipping_type', 1)
+            ->where('is_del', 0)
             ->count();
         //退换货订单数
         $topData['orderRefundNum'] = StoreOrderModel::where('paid', 1)
             ->where('refund_status', 'IN', '1')
             ->count();
         //库存预警
-        $replenishment_num = SystemConfig::getConfigValue('store_stock') > 0 ? SystemConfig::getConfigValue('store_stock') : 20;//库存预警界限
+        $replenishment_num = sys_config('store_stock') > 0 ? sys_config('store_stock') : 20;//库存预警界限
         $topData['stockProduct'] = StoreProduct::where('stock', '<=', $replenishment_num)->where('is_show', 1)->where('is_del', 0)->count();
         //待处理提现
         $topData['treatedExtract'] = UserExtractModel::where('status', 0)->count();
@@ -212,17 +209,17 @@ class Index extends AuthController
                     ->find();
                 if ($total) {
                     $cha_count = intval($pre_total['count']) - intval($total['count']);
-                    $pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
+                    //$pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
                     $chartdata['cycle']['count'] = [
                         'data' => $total['count'] ?: 0,
-                        'percent' => round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
+                        'percent' => intval($pre_total['count']) == 0 ? 100 : round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
                         'is_plus' => $cha_count > 0 ? -1 : ($cha_count == 0 ? 0 : 1)
                     ];
                     $cha_price = round($pre_total['price'], 2) - round($total['price'], 2);
-                    $pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
+                    //$pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
                     $chartdata['cycle']['price'] = [
                         'data' => $total['price'] ?: 0,
-                        'percent' => round(abs($cha_price) / $pre_total['price'] * 100, 2),
+                        'percent' => (intval($pre_total['price']) == 0 || !$pre_total['price'] || $pre_total['price'] == 0.00) ? 100 : round(abs($cha_price) / $pre_total['price'] * 100, 2),
                         'is_plus' => $cha_price > 0 ? -1 : ($cha_price == 0 ? 0 : 1)
                     ];
                 }
@@ -310,17 +307,17 @@ class Index extends AuthController
                     ->find();
                 if ($total) {
                     $cha_count = intval($pre_total['count']) - intval($total['count']);
-                    $pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
+                    //$pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
                     $chartdata['cycle']['count'] = [
                         'data' => $total['count'] ?: 0,
-                        'percent' => round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
+                        'percent' => intval($pre_total['count']) == 0 ? 100 : round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
                         'is_plus' => $cha_count > 0 ? -1 : ($cha_count == 0 ? 0 : 1)
                     ];
                     $cha_price = round($pre_total['price'], 2) - round($total['price'], 2);
-                    $pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
+                    //$pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
                     $chartdata['cycle']['price'] = [
                         'data' => $total['price'] ?: 0,
-                        'percent' => round(abs($cha_price) / $pre_total['price'] * 100, 2),
+                        'percent' => (intval($pre_total['price']) == 0 || !$pre_total['price'] || $pre_total['price'] == 0.00) ? 100 : round(abs($cha_price) / $pre_total['price'] * 100, 2),
                         'is_plus' => $cha_price > 0 ? -1 : ($cha_price == 0 ? 0 : 1)
                     ];
                 }
@@ -410,17 +407,17 @@ class Index extends AuthController
                     ->find();
                 if ($total) {
                     $cha_count = intval($pre_total['count']) - intval($total['count']);
-                    $pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
+                    //$pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
                     $chartdata['cycle']['count'] = [
                         'data' => $total['count'] ?: 0,
-                        'percent' => round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
+                        'percent' => intval($pre_total['count']) == 0 ? 100 : round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
                         'is_plus' => $cha_count > 0 ? -1 : ($cha_count == 0 ? 0 : 1)
                     ];
                     $cha_price = round($pre_total['price'], 2) - round($total['price'], 2);
-                    $pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
+                    //$pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
                     $chartdata['cycle']['price'] = [
                         'data' => $total['price'] ?: 0,
-                        'percent' => round(abs($cha_price) / $pre_total['price'] * 100, 2),
+                        'percent' => (intval($pre_total['price']) == 0 || !$pre_total['price'] || $pre_total['price'] == 0.00) ? 100 : round(abs($cha_price) / $pre_total['price'] * 100, 2),
                         'is_plus' => $cha_price > 0 ? -1 : ($cha_price == 0 ? 0 : 1)
                     ];
                 }
@@ -508,17 +505,17 @@ class Index extends AuthController
                     ->find();
                 if ($total) {
                     $cha_count = intval($pre_total['count']) - intval($total['count']);
-                    $pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
+                    //$pre_total['count'] = $pre_total['count'] == 0 ? 1 : $pre_total['count'];
                     $chartdata['cycle']['count'] = [
                         'data' => $total['count'] ?: 0,
-                        'percent' => round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
+                        'percent' => intval($pre_total['count']) == 0 ? 100 : round((abs($cha_count) / intval($pre_total['count']) * 100), 2),
                         'is_plus' => $cha_count > 0 ? -1 : ($cha_count == 0 ? 0 : 1)
                     ];
                     $cha_price = round($pre_total['price'], 2) - round($total['price'], 2);
-                    $pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
+                    //$pre_total['price'] = $pre_total['price'] == 0 ? 1 : $pre_total['price'];
                     $chartdata['cycle']['price'] = [
                         'data' => $total['price'] ?: 0,
-                        'percent' => round(abs($cha_price) / $pre_total['price'] * 100, 2),
+                        'percent' => (intval($pre_total['price']) == 0 || !$pre_total['price'] || $pre_total['price'] == 0.00) ? 100 : round(abs($cha_price) / $pre_total['price'] * 100, 2),
                         'is_plus' => $cha_price > 0 ? -1 : ($cha_price == 0 ? 0 : 1)
                     ];
                 }
@@ -575,7 +572,7 @@ class Index extends AuthController
         header('Content-type:text/json');
         $data = [];
         $data['ordernum'] = StoreOrderModel::statusByWhere(1)->count();//待发货
-        $replenishment_num = SystemConfig::getConfigValue('store_stock') > 0 ? SystemConfig::getConfigValue('store_stock') : 2;//库存预警界限
+        $replenishment_num = sys_config('store_stock') > 0 ? sys_config('store_stock') : 2;//库存预警界限
         $data['inventory'] = ProductModel::where('stock', '<=', $replenishment_num)->where('is_show', 1)->where('is_del', 0)->count();//库存
         $data['commentnum'] = StoreProductReplyModel::where('is_reply', 0)->count();//评论
         $data['reflectnum'] = UserExtractModel::where('status', 0)->count();;//提现

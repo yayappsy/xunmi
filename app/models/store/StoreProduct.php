@@ -11,10 +11,12 @@ use app\admin\model\store\StoreProductAttrValue as StoreProductAttrValueModel;
 use app\models\system\SystemUserLevel;
 use app\models\user\UserLevel;
 use crmeb\basic\BaseModel;
-use crmeb\services\SystemConfigService;
+use crmeb\services\GroupDataService;
 use crmeb\services\workerman\ChannelService;
 use crmeb\traits\ModelTrait;
-use think\facade\Db;
+use app\models\store\{
+    StoreBargain, StoreCombination, StoreSeckill
+};
 
 /**
  * TODO 产品Model
@@ -51,7 +53,12 @@ class StoreProduct extends BaseModel
         return str_replace('\\', '/', $value);
     }
 
-    public static function getValidProduct($productId, $field = 'add_time,browse,cate_id,code_path,cost,description,ficti,give_integral,id,image,is_bargain,is_benefit,is_best,is_del,is_hot,is_new,is_postage,is_seckill,is_show,keyword,mer_id,mer_use,ot_price,postage,price,sales,slider_image,sort,stock,store_info,store_name,unit_name,vip_price,IFNULL(sales,0) + IFNULL(ficti,0) as fsales')
+    public function getDescriptionAttr($value)
+    {
+        return htmlspecialchars_decode($value);
+    }
+
+    public static function getValidProduct($productId, $field = 'add_time,browse,cate_id,code_path,cost,ficti,give_integral,id,image,is_sub,is_bargain,is_benefit,is_best,is_del,is_hot,is_new,is_postage,is_seckill,is_show,keyword,mer_id,mer_use,ot_price,postage,price,sales,slider_image,sort,stock,store_info,store_name,unit_name,vip_price,spec_type,IFNULL(sales,0) + IFNULL(ficti,0) as fsales,video_link')
     {
         $Product = self::where('is_del', 0)->where('is_show', 1)->where('id', $productId)->field($field)->find();
         if ($Product) return $Product->toArray();
@@ -60,7 +67,14 @@ class StoreProduct extends BaseModel
 
     public static function getGoodList($limit = 18, $field = '*')
     {
-        return self::validWhere()->where('is_good', 1)->order('sort desc,id desc')->limit($limit)->field($field)->select();
+        $list = self::validWhere()->where('is_good', 1)->order('sort desc,id desc')->limit($limit)->field($field)->select();
+        $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
+        return $list;
     }
 
     public static function validWhere()
@@ -81,20 +95,15 @@ class StoreProduct extends BaseModel
         $type = $data['type']; // 某些模板需要购物车数量 1 = 需要查询，0 = 不需要
         $model = self::validWhere();
         if ($sId) {
-            $product_ids = Db::name('store_product_cate')->where('cate_id', $sId)->column('product_id');
-            if (count($product_ids))
-                $model->where('id', 'in', $product_ids);
-            else
-                $model->where('cate_id', -1);
+            $model->whereIn('id', function ($query) use ($sId) {
+                $query->name('store_product_cate')->where('cate_id', $sId)->field('product_id')->select();
+            });
         } elseif ($cId) {
-            $sids = StoreCategory::pidBySidList($cId) ?: [];
-            if ($sids) {
-                $sidsr = [];
-                foreach ($sids as $v) {
-                    $sidsr[] = $v['id'];
-                }
-                $model->where('cate_id', 'IN', $sidsr);
-            }
+            $model->whereIn('id', function ($query) use ($cId) {
+                $query->name('store_product_cate')->whereIn('cate_id', function ($q) use ($cId) {
+                    $q->name('store_category')->where('pid', $cId)->field('id')->select();
+                })->field('product_id')->select();
+            });
         }
         if (!empty($keyword)) $model->where('keyword|store_name', 'LIKE', htmlspecialchars("%$keyword%"));
         if ($news != 0) $model->where('is_new', 1);
@@ -113,6 +122,11 @@ class StoreProduct extends BaseModel
             }
         });
         $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
         return self::setLevelPrice($list, $uid);
     }
 
@@ -145,6 +159,12 @@ class StoreProduct extends BaseModel
             }
         }
         $list = $model->field('id,store_name,cate_id,image,ficti as sales,price,stock')->page($page, $limit)->select();
+        $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
         return self::setLevelPrice($list, $uid);
     }
 
@@ -163,6 +183,11 @@ class StoreProduct extends BaseModel
         if ($limit) $model->limit($limit);
         $list = $model->select();
         $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
         return self::setLevelPrice($list, $uid);
     }
 
@@ -178,7 +203,14 @@ class StoreProduct extends BaseModel
             ->where('stock', '>', 0)->where('is_show', 1)->field($field)
             ->order('sort DESC, id DESC');
         if ($limit) $model->limit($limit);
-        return self::setLevelPrice($model->select(), $uid);
+        $list = $model->select();
+        $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
+        return self::setLevelPrice($list, $uid);
     }
 
     /**
@@ -216,7 +248,14 @@ class StoreProduct extends BaseModel
             ->where('stock', '>', 0)->where('is_show', 1)->field($field)
             ->order('sort DESC, id DESC');
         if ($limit) $model->limit($limit);
-        return self::setLevelPrice($model->select(), $uid);
+        $list = $model->select();
+        $list = count($list) ? $list->toArray() : [];
+        if (!empty($list)) {
+            foreach ($list as $k => $v) {
+                $list[$k]['activity'] = self::activity($v['id']);
+            }
+        }
+        return self::setLevelPrice($list, $uid);
     }
 
     /**
@@ -272,7 +311,13 @@ class StoreProduct extends BaseModel
             ->where('is_show', 1)->field($field)
             ->order('sort DESC, id DESC');
         if ($limit) $model->limit($limit);
-        return $model->select();
+        $data = $model->select();
+        if (count($data) > 0) {
+            foreach ($data as $k => $v) {
+                $data[$k]['activity'] = self::activity($v['id']);
+            }
+        }
+        return $data;
     }
 
     public static function cateIdBySimilarityProduct($cateId, $field = '*', $limit = 0)
@@ -311,8 +356,8 @@ class StoreProduct extends BaseModel
     public static function decProductStock($num, $productId, $unique = '')
     {
         if ($unique) {
-            $res = false !== StoreProductAttrValueModel::decProductAttrStock($productId, $unique, $num);
-            $res = $res && self::where('id', $productId)->inc('sales', $num)->update();
+            $res = false !== StoreProductAttrValueModel::decProductAttrStock($productId, $unique, $num, 0);
+            $res = $res && self::where('id', $productId)->dec('stock', $num)->inc('sales', $num)->update();
         } else {
             $res = false !== self::where('id', $productId)->dec('stock', $num)->inc('sales', $num)->update();
         }
@@ -364,41 +409,27 @@ class StoreProduct extends BaseModel
     {
         $store_brokerage_ratio = sys_config('store_brokerage_ratio');
         $store_brokerage_ratio = bcdiv($store_brokerage_ratio, 100, 2);
-        if (count($productValue)) {
+        if (isset($storeInfo['is_sub']) && $storeInfo['is_sub'] == 1) {
+            $Maxkey = self::getArrayMax($productValue, 'brokerage');
+            $Minkey = self::getArrayMin($productValue, 'brokerage');
+            $maxPrice = bcadd(isset($productValue[$Maxkey]) ? $productValue[$Maxkey]['brokerage'] : 0, 0, 0);
+            $minPrice = bcadd(isset($productValue[$Minkey]) ? $productValue[$Minkey]['brokerage'] : 0, 0, 0);
+        } else {
             $Maxkey = self::getArrayMax($productValue, 'price');
             $Minkey = self::getArrayMin($productValue, 'price');
-
-            if (isset($productValue[$Maxkey])) {
-                $value = $productValue[$Maxkey];
-                if ($value['cost'] > $value['price'])
-                    $maxPrice = 0;
-                else
-                    $maxPrice = bcmul($store_brokerage_ratio, bcsub($value['price'], $value['cost']), 0);
-                unset($value);
-            } else $maxPrice = 0;
-
-            if (isset($productValue[$Minkey])) {
-                $value = $productValue[$Minkey];
-                if ($value['cost'] > $value['price'])
-                    $minPrice = 0;
-                else
-                    $minPrice = bcmul($store_brokerage_ratio, bcsub($value['price'], $value['cost']), 0);
-                unset($value);
-            } else $minPrice = 0;
-            if ($minPrice == 0 && $maxPrice == 0)
-                return 0;
-            else if ($minPrice == 0 && $maxPrice)
-                return $maxPrice;
-            else if ($maxPrice == 0 && $minPrice)
-                return $minPrice;
-            else
-                return $minPrice . '~' . $maxPrice;
-        } else {
-            if ($storeInfo['cost'] < $storeInfo['price'])
-                return bcmul($store_brokerage_ratio, bcsub($storeInfo['price'], $storeInfo['cost']), 2);
-            else
-                return 0;
+            $maxPrice = bcmul($store_brokerage_ratio, bcadd(isset($productValue[$Maxkey]) ? $productValue[$Maxkey]['price'] : 0, 0, 0), 0);
+            $minPrice = bcmul($store_brokerage_ratio, bcadd(isset($productValue[$Minkey]) ? $productValue[$Minkey]['price'] : 0, 0, 0), 0);
         }
+        if ($minPrice == 0 && $maxPrice == 0)
+            return 0;
+        else if ($minPrice == 0 && $maxPrice)
+            return $maxPrice;
+        else if ($maxPrice == 0 && $minPrice)
+            return $minPrice;
+        else if ($maxPrice == $minPrice && $minPrice)
+            return $maxPrice;
+        else
+            return $minPrice . '~' . $maxPrice;
     }
 
     /**
@@ -413,6 +444,7 @@ class StoreProduct extends BaseModel
         foreach ($arr as $k => $v) {
             $temp[] = $v[$field];
         }
+        if (!count($temp)) return 0;
         $maxNumber = max($temp);
         foreach ($arr as $k => $v) {
             if ($maxNumber == $v[$field]) return $k;
@@ -432,6 +464,7 @@ class StoreProduct extends BaseModel
         foreach ($arr as $k => $v) {
             $temp[] = $v[$field];
         }
+        if (!count($temp)) return 0;
         $minNumber = min($temp);
         foreach ($arr as $k => $v) {
             if ($minNumber == $v[$field]) return $k;
@@ -463,4 +496,107 @@ class StoreProduct extends BaseModel
             return self::where('id', $id)->value($field);
     }
 
+    /**
+     * 获取产品返佣金额
+     * @param array $cartId
+     * @param bool $type true = 一级返佣, fasle = 二级返佣
+     * @return int|string
+     */
+    public static function getProductBrokerage(array $cartId, bool $type = true)
+    {
+        $cartInfo = StoreOrderCartInfo::whereIn('cart_id', $cartId)->column('cart_info');
+        $oneBrokerage = 0;//一级返佣金额
+        $twoBrokerage = 0;//二级返佣金额
+        $sumProductPrice = 0;//非指定返佣商品总金额
+        foreach ($cartInfo as $value) {
+            $product = json_decode($value, true);
+            $cartNum = $product['cart_num'] ?? 0;
+            if (isset($product['productInfo'])) {
+                $productInfo = $product['productInfo'];
+                //指定返佣金额
+                if (isset($productInfo['is_sub']) && $productInfo['is_sub'] == 1) {
+                    $oneBrokerage = bcadd($oneBrokerage, bcmul($cartNum, $productInfo['attrInfo']['brokerage'] ?? 0, 2), 2);
+                    $twoBrokerage = bcadd($twoBrokerage, bcmul($cartNum, $productInfo['attrInfo']['brokerage_two'] ?? 0, 2), 2);
+                } else {
+                    //比例返佣
+                    if (isset($productInfo['attrInfo'])) {
+                        $sumProductPrice = bcadd($sumProductPrice, bcmul($cartNum, $productInfo['attrInfo']['price'] ?? 0, 2), 2);
+                    } else {
+                        $sumProductPrice = bcadd($sumProductPrice, bcmul($cartNum, $productInfo['price'] ?? 0, 2), 2);
+                    }
+                }
+            }
+        }
+        if ($type) {
+            //获取后台一级返佣比例
+            $storeBrokerageRatio = sys_config('store_brokerage_ratio');
+            //一级返佣比例 小于等于零时直接返回 不返佣
+            if ($storeBrokerageRatio <= 0) {
+                return $oneBrokerage;
+            }
+            //计算获取一级返佣比例
+            $brokerageRatio = bcdiv($storeBrokerageRatio, 100, 2);
+            $brokeragePrice = bcmul($sumProductPrice, $brokerageRatio, 2);
+            //固定返佣 + 比例返佣 = 一级总返佣金额
+            return bcadd($oneBrokerage, $brokeragePrice, 2);
+        } else {
+            //获取二级返佣比例
+            $storeBrokerageTwo = sys_config('store_brokerage_two');
+            //二级返佣比例小于等于0 直接返回
+            if ($storeBrokerageTwo <= 0) {
+                return $twoBrokerage;
+            }
+            //计算获取二级返佣比例
+            $brokerageRatio = bcdiv($storeBrokerageTwo, 100, 2);
+            $brokeragePrice = bcmul($sumProductPrice, $brokerageRatio, 2);
+            //固定返佣 + 比例返佣 = 二级总返佣金额
+            return bcadd($twoBrokerage, $brokeragePrice, 2);
+        }
+
+    }
+
+    /**
+     * 获取商品在此时段活动优先类型
+     */
+    public static function activity($id, $status = true)
+    {
+        $activity = self::where('id', $id)->value('activity');
+        if (!$activity) $activity = '1,2,3';//如果老商品没有活动顺序，默认活动顺序，秒杀-砍价-拼团
+        $activity = explode(',', $activity);
+        $activityId = [];
+        $time = 0;
+        $seckillId = StoreSeckill::where('is_del', 0)->where('status', 1)->where('start_time', '<=', time())->where('stop_time', '>=', time()-86400)->where('product_id', $id)->field('id,time_id')->select();
+        if ($seckillId) {
+            foreach ($seckillId as $v) {
+                $timeInfo = GroupDataService::getDataNumber((int)$v['time_id']);
+                if ($timeInfo && isset($timeInfo['time']) && isset($timeInfo['continued'])) {
+                    if (date('H') >= $timeInfo['time'] && date('H') < ($timeInfo['time'] + $timeInfo['continued'])) {
+                        $activityId[1] = $v['id'];
+                        $time = strtotime(date("Y-m-d"), time()) + 3600 * ($timeInfo['time'] + $timeInfo['continued']);
+                    }
+                }
+            }
+        }
+        $bargainId = StoreBargain::where('is_del', 0)->where('status', 1)->where('start_time', '<=', time())->where('stop_time', '>=', time())->where('product_id', $id)->value('id');
+        if ($bargainId) $activityId[2] = $bargainId;
+        $combinationId = StoreCombination::where('is_del', 0)->where('is_show',1)->where('start_time', '<=', time())->where('stop_time', '>=', time())->where('product_id', $id)->value('id');
+        if ($combinationId) $activityId[3] = $combinationId;
+        $data = [];
+        foreach ($activity as $k => $v) {
+            if (array_key_exists($v, $activityId)) {
+                if ($status) {
+                    $data['type'] = $v;
+                    $data['id'] = $activityId[$v];
+                    if ($v == 1) $data['time'] = $time;
+                    break;
+                } else {
+                    $arr['type'] = $v;
+                    $arr['id'] = $activityId[$v];
+                    if ($v == 1) $arr['time'] = $time;
+                    $data[] = $arr;
+                }
+            }
+        }
+        return $data;
+    }
 }

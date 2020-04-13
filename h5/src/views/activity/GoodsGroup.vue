@@ -30,6 +30,9 @@
       </div>
       <Loading :loaded="status" :loading="loadingList"></Loading>
     </div>
+    <div id="title0"></div>
+    <div id="title1"></div>
+    <div id="title2"></div>
   </div>
 </template>
 <script>

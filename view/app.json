@@ -25,6 +25,7 @@
     "pages/user_sgin_list/index",
     "pages/order_list/index",
     "pages/goods_details/index",
+    "pages/goods_details_store/index",
     "pages/news_details/index",
     "pages/promoter-list/index",
     "pages/promoter-order/index",
@@ -59,7 +60,9 @@
     "components/coupon-list-window/index",
     "components/address-window/index",
     "components/home/index",
-    "components/write-off/index"
+    "components/write-off/index",
+    "components/price-change/index",
+    "components/general-window/index"
   ],
   "subPackages": [
     {
@@ -75,6 +78,19 @@
         "goods_bargain/index",
         "poster-poster/index",
         "user_goods_bargain_list/index"
+      ]
+    },
+    {
+      "root": "pages/admin",
+      "name": "admin",
+      "pages": [
+        "order_cancellation/index",
+        "order/index",
+        "order_list/index",
+        "order_details/index",
+        "order_deliver/index",
+        "order_statistics/index",
+        "order_statistics_time/index"
       ]
     }
   ],
@@ -117,5 +133,13 @@
       }
     ]
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "你的位置信息将用于获取附近门店"
+    }
+  },
+  "requiredBackgroundModes": [
+    "location"
+  ],
   "sitemapLocation": "sitemap.json"
 }

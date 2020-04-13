@@ -40,7 +40,7 @@
         :to="'/user/commission'"
       >
         <span class="iconfont icon-qiandai"></span>
-        <div>佣金明细</div>
+        <div>佣金记录</div>
       </router-link>
       <router-link
         class="item acea-row row-center-wrapper row-column"

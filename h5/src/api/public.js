@@ -114,3 +114,11 @@ export function imageBase64(image, code) {
 export function follow() {
   return request.get("/wechat/follow", {}, { login: false });
 }
+
+/**
+ * 获取城市列表
+ * @returns {*}
+ */
+export function getCity() {
+  return request.get("/city_list", {}, { login: false });
+}

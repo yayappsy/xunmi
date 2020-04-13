@@ -12,9 +12,7 @@ use crmeb\traits\ModelTrait;
 use crmeb\basic\BaseModel;
 use app\admin\model\wechat\WechatUser;
 use app\admin\model\store\StoreCouponUser;
-use crmeb\services\SystemConfigService;
 use crmeb\services\PHPExcelService;
-use think\facade\Db;
 
 /**
  * 用户管理 model
@@ -127,6 +125,12 @@ class User extends BaseModel
         if ($where['country'] != '') {
             if ($where['country'] == 'domestic') $model = $model->where('w.country', '中国');
             else if ($where['country'] == 'abroad') $model = $model->where('w.country', '<>', '中国');
+        }
+        if ($where['level'] !== '') {
+            $model = $model->where('level', $where['level'])->where('clean_time',0);
+        }
+        if ($where['group_id'] !== '') {
+            $model = $model->where('group_id', $where['group_id']);
         }
         return $model;
     }
@@ -618,9 +622,9 @@ class User extends BaseModel
         count($list) && $list = $list->toArray();
         $export = [];
         foreach ($list as &$value) {
-            $value['ex_price'] = Db::name('user_extract')->where('uid', $value['uid'])->sum('extract_price');
-            $value['extract_price'] = Db::name('user_extract')->where('uid', $value['uid'])->where('status', 1)->sum('extract_price');
-            $cashPrice = Db::name('user_extract')->where('uid', $value['uid'])->where('status', 0)->sum('extract_price');
+            $value['ex_price'] = UserExtract::where('uid', $value['uid'])->sum('extract_price');
+            $value['extract_price'] = UserExtract::where('uid', $value['uid'])->where('status', 1)->sum('extract_price');
+            $cashPrice = UserExtract::where('uid', $value['uid'])->where('status', 0)->sum('extract_price');
             $value['money'] = bcsub($value['ex_price'], $value['extract_price'], 2);
             $value['money'] = bcsub($value['money'], $cashPrice, 2);
             $export[] = [
@@ -685,9 +689,9 @@ class User extends BaseModel
     public static function getUserDetailed($uid)
     {
         $key_field = ['real_name', 'phone', 'province', 'city', 'district', 'detail', 'post_code'];
-        $Address = ($thisAddress = Db::name('user_address')->where('uid', $uid)->where('is_default', 1)->field($key_field)->find()) ?
+        $Address = ($thisAddress = UserAddress::where('uid', $uid)->where('is_default', 1)->field($key_field)->find()) ?
             $thisAddress :
-            Db::name('user_address')->where('uid', $uid)->field($key_field)->find();
+            UserAddress::where('uid', $uid)->field($key_field)->find();
         $UserInfo = self::get($uid);
         return [
             ['col' => 12, 'name' => '默认收货地址', 'value' => $thisAddress ? '收货人:' . $thisAddress['real_name'] . '邮编:' . $thisAddress['post_code'] . ' 收货人电话:' . $thisAddress['phone'] . ' 地址:' . $thisAddress['province'] . ' ' . $thisAddress['city'] . ' ' . $thisAddress['district'] . ' ' . $thisAddress['detail'] : ''],
@@ -702,7 +706,7 @@ class User extends BaseModel
             ['name' => '上级推广人', 'value' => $UserInfo['spread_uid'] ? self::where('uid', $UserInfo['spread_uid'])->value('nickname') : ''],
             ['name' => '账户余额', 'value' => $UserInfo['now_money']],
             ['name' => '佣金总收入', 'value' => UserBill::where('category', 'now_money')->where('type', 'brokerage')->where('uid', $uid)->sum('number')],
-            ['name' => '提现总金额', 'value' => Db::name('user_extract')->where('uid', $uid)->where('status', 1)->sum('extract_price')],
+            ['name' => '提现总金额', 'value' => UserExtract::where('uid', $uid)->where('status', 1)->sum('extract_price')],
         ];
     }
 

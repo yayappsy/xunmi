@@ -129,3 +129,9 @@ export function postOrderProduct(unique) {
 export function postOrderComment(data) {
   return request.post("/order/comment", data, { login: false });
 }
+/**
+ * 门店列表
+ */
+export function storeListApi(data) {
+  return request.get("store_list", data, { login: false });
+}

@@ -8,6 +8,7 @@
 
 namespace app\models\user;
 
+use app\models\store\StoreOrder;
 use think\facade\Cache;
 use crmeb\traits\ModelTrait;
 use crmeb\basic\BaseModel;
@@ -102,8 +103,12 @@ class UserBill extends BaseModel
      */
     public static function getBrokerage($uid)
     {
-        return self::where('uid', $uid)->where('category', 'now_money')->where('type', 'brokerage')->where('pm', 1)
+        $count1 = self::where('uid', $uid)->where('category', 'now_money')->where('type', 'brokerage')->where('pm', 1)
             ->where('status', 1)->sum('number');
+        $count2 = self::where('uid', $uid)->where('category', 'now_money')->where('type', 'brokerage')->where('pm', 0)
+            ->where('status', 1)->sum('number');
+        $count = $count1 - $count2;
+        return $count;
     }
 
     /**
@@ -157,10 +162,10 @@ class UserBill extends BaseModel
                 $model = $model->where('type', 'in', 'recharge,system_add');
                 break;
             case 3:
-                $model = $model->where('type', 'brokerage');
+                $model = $model->where('type', 'brokerage')->whereOr('type', 'recharge');
                 break;
             case 4:
-                $model = $model->where('type', 'extract');
+                $model = $model->where('type', 'extract')->whereOr('type', 'recharge');
                 break;
         }
         if ($page) $model = $model->page((int)$page, (int)$limit);
@@ -186,11 +191,14 @@ class UserBill extends BaseModel
     public static function getRecordList($uid, $page = 1, $limit = 8, $category = 'now_money', $type = '')
     {
         $model = new self;
-        $model = $model->field("FROM_UNIXTIME(add_time, '%Y-%m') as time");
-        $model = $model->where('uid', $uid);
-        if (strlen(trim($type))) $model = $model->whereIn('type', $type);
-        $model = $model->where('category', $category);
-        $model = $model->group("FROM_UNIXTIME(add_time, '%Y-%m')");
+        $model = $model->alias('b');
+        $model = $model->field("FROM_UNIXTIME(b.add_time, '%Y-%m') as time");
+        $model = $model->where('b.uid', $uid);
+        $model = $model->join('StoreOrder o', 'o.id=b.link_id');
+        $model = $model->where('o.refund_status', 0);
+        if (strlen(trim($type))) $model = $model->whereIn('b.type', $type);
+        $model = $model->where('b.category', $category);
+        $model = $model->group("FROM_UNIXTIME(b.add_time, '%Y-%m')");
         $model = $model->order('time desc');
         $model = $model->page($page, $limit);
         return $model->select();
@@ -229,21 +237,30 @@ class UserBill extends BaseModel
      */
     public static function getRecordOrderListDraw($uid, $addTime = 0, $category = 'now_money', $type = 'brokerage')
     {
-        if (!strlen(trim($uid))) [];
+        if (!strlen(trim($uid))) return [];
+        $uids = User::where('spread_uid', $uid)->column('uid');
         $model = new self;
-        $model = $model->field("o.order_id,FROM_UNIXTIME(b.add_time, '%Y-%m-%d %H:%i') as time,b.number,u.avatar,u.nickname");
         $model = $model->alias('b');
         $model = $model->join('StoreOrder o', 'o.id=b.link_id');
         $model = $model->join('User u', 'u.uid=o.uid', 'right');
-        $model = $model->where('b.uid', $uid);
+        $model = $model->where('o.refund_status', 0);
+        $model = $model->where(function ($query) use ($uid, $type, $uids) {
+            $query->where(function ($query1) use ($uid, $type) {
+                $query1->where('b.uid', $uid)->where('b.type', $type);
+            })->whereOr(function ($query2) use ($uids, $type) {
+                $query2->where('b.uid', 'in', $uids)->where(function ($query3) use ($type) {
+                    $query3->where('b.type', 'pay_product');
+                });
+            });
+        });
         $model = $model->where("FROM_UNIXTIME(b.add_time, '%Y-%m')= '{$addTime}'");
         $model = $model->where('b.category', $category);
-        $model = $model->whereIn('b.type', $type);
-        $model = $model->order('time desc');
-//        dump($model);exit();
+        $model = $model->where('b.take', 0);
+        $model = $model->order('b.add_time desc');
+        $model = $model->field("o.order_id,FROM_UNIXTIME(b.add_time, '%Y-%m-%d %H:%i') as time,b.number,u.avatar,u.nickname,b.type");
         $list = $model->select();
         if ($list) return $list->toArray();
-        else [];
+        else return [];
     }
 
     /**
@@ -276,10 +293,20 @@ class UserBill extends BaseModel
      */
     public static function getRecordOrderCount($uid, $category = 'now_money', $type = 'brokerage')
     {
+        $uids = User::where('spread_uid', $uid)->column('uid');
         $model = new self;
-        $model = $model->where('uid', $uid);
-        $model = $model->where('category', $category);
-        if (strlen(trim($type))) $model = $model->whereIn('type', $type);
+        $model = $model->alias('b');
+        $model = $model->join('StoreOrder o', 'o.id=b.link_id');
+        $model = $model->where('o.refund_status', 0);
+        $model = $model->where(function ($query) use ($uid, $type, $uids) {
+            $query->where(function ($query1) use ($uid, $type) {
+                $query1->where('b.uid', $uid)->where('b.type', $type);
+            })->whereOr(function ($query2) use ($uids, $type) {
+                $query2->where('b.uid', 'in', $uids)->where('b.type', 'pay_product');
+            });
+        });
+        $model = $model->where('b.category', $category);
+        $model = $model->where('b.take', 0);
         return $model->count();
     }
 

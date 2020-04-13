@@ -30,7 +30,7 @@ export default [
     component: () => import("@views/orderAdmin/GoodsDeliver.vue")
   },
   {
-    path: "/customer/orderdetail/:oid?",
+    path: "/customer/orderdetail/:oid?/:goname?",
     name: "AdminOrder",
     meta: {
       title: "订单详情",

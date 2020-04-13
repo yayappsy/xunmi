@@ -18,7 +18,13 @@
           <div class="attr line1" v-if="cart.productInfo.attrInfo">
             {{ cart.productInfo.attrInfo.suk }}
           </div>
-          <div class="money font-color-red">￥{{ cart.truePrice }}</div>
+          <div class="money font-color-red">
+            ￥{{
+              cart.productInfo.attrInfo
+                ? cart.productInfo.attrInfo.price
+                : cart.productInfo.price
+            }}
+          </div>
           <div
             class="evaluate"
             v-if="evaluate === 3"

@@ -1,5 +1,5 @@
 <template>
-  <div class="bargain">
+  <div class="bargain" v-cloak>
     <!-- 在header上加 on 为请求支援 -->
     <div :class="[bargainPartake != userInfo.uid ? 'header on' : 'header']">
       <div class="people">
@@ -30,9 +30,13 @@
       ></CountDown>
     </div>
     <div class="wrapper">
-      <div class="pictxt acea-row row-between-wrapper">
+      <div class="pictxt acea-row row-between-wrapper" @click="openAlone">
         <div class="pictrue">
           <img :src="bargain.image" />
+          <div class="bargain_view">
+            查看商品
+            <span class="iconfont icon-jiantou iconfonts"></span>
+          </div>
         </div>
         <div class="text acea-row row-column-around">
           <div class="line2" v-text="bargain.title"></div>
@@ -61,27 +65,65 @@
         <div v-else v-text="'还剩' + surplusPrice + '元'"></div>
       </div>
       <!-- 帮助砍价、帮砍成功：-->
-      <!--<div class='bargainSuccess'><span class='iconfont icon-xiaolian'></span>已成功帮助好友砍价</div>-->
+      <div
+        class="bargainSuccess"
+        v-if="bargainPartake != userInfo.uid && !statusUser && !helpListLoading"
+      >
+        <span class="iconfont icon-xiaolian"></span>已成功帮助好友砍价
+      </div>
+      <!-- 砍价成功：-->
+      <div
+        class="bargainSuccess"
+        v-if="
+          surplusPrice === 0 &&
+            bargainPartake === userInfo.uid &&
+            userBargainStatus === 1 &&
+            dargainQuota > 0 &&
+            productstock > 0 &&
+            !helpListLoading
+        "
+      >
+        <span class="iconfont icon-xiaolian"></span>恭喜您砍价成功，快去支付吧~
+      </div>
+      <div
+        v-if="userBargainStatus == 0 && bargainPartake === userInfo.uid"
+        :class="
+          dargainQuota > 0 && productstock > 0 ? 'bargainBnt' : 'bargainBnt_hui'
+        "
+        @click="goParticipate"
+      >
+        立即参与砍价
+      </div>
       <div
         class="bargainBnt"
         @click="goPoster"
-        v-if="bargainPartake === userInfo.uid && surplusPrice > 0"
+        v-if="
+          surplusPrice > 0 &&
+            bargainPartake === userInfo.uid &&
+            userBargainStatus === 1 &&
+            !helpListLoading
+        "
       >
         邀请好友帮砍价
       </div>
       <div
         class="bargainBnt"
         @click="getBargainHelp"
-        v-else-if="bargainPartake != userInfo.uid"
+        v-else-if="
+          bargainPartake != userInfo.uid &&
+            userBargainStatus == 1 &&
+            statusUser &&
+            !helpListLoading
+        "
       >
         帮好友砍一刀
       </div>
       <div
         class="bargainBnt"
         @click="getBargainStart"
-        v-if="bargainPartake != userInfo.uid"
+        v-if="bargainPartake != userInfo.uid && !statusUser && !helpListLoading"
       >
-        开启砍价
+        我也要参与
       </div>
       <div
         class="bargainBnt"
@@ -89,7 +131,9 @@
         v-if="
           surplusPrice === 0 &&
             bargainPartake === userInfo.uid &&
-            userBargainStatus === 1
+            userBargainStatus === 1 &&
+            dargainQuota > 0 &&
+            productstock > 0
         "
       >
         立即支付
@@ -147,12 +191,12 @@
         <div class="pictrue">
           <img src="@assets/images/left.png" />
         </div>
-        <div class="titleCon">商品详情</div>
+        <div class="titleCon">活动规则</div>
         <div class="pictrue on">
           <img src="@assets/images/left.png" />
         </div>
       </div>
-      <div class="conter" v-html="bargain.description"></div>
+      <div class="conter" v-html="bargain.rule"></div>
       <div class="lock"></div>
     </div>
     <div class="goodsDetails">
@@ -160,12 +204,12 @@
         <div class="pictrue">
           <img src="@assets/images/left.png" />
         </div>
-        <div class="titleCon">活动规则</div>
+        <div class="titleCon">商品详情</div>
         <div class="pictrue on">
           <img src="@assets/images/left.png" />
         </div>
       </div>
-      <div class="conter" v-html="bargain.rule"></div>
+      <div class="conter" v-html="bargain.description"></div>
     </div>
     <div class="bargainTip" :class="active === true ? 'on' : ''">
       <div class="pictrue">
@@ -231,7 +275,7 @@ export default {
       price: 0,
       bargainId: 0, //砍价编号
       bargainPartake: 0, //参与砍价
-      bargain: [], //砍价产品信息
+      bargain: {}, //砍价产品信息
       bargainSumCount: 0, //砍价成功人数
       activeMsg: "",
       active: false,
@@ -243,7 +287,7 @@ export default {
       bargainHelpPrice: 0, //砍掉金额
       bargainHelpList: [],
       helpListStatus: false, //砍价列表是否获取完成 false 未完成 true 完成
-      helpListLoading: false, //当前接口是否请求完成 false 完成 true 未完成
+      helpListLoading: true, //当前接口是否请求完成 false 完成 true 未完成
       page: 1, //页码
       limit: 2, //数量
       helpCount: 0, //砍价帮总人数
@@ -251,7 +295,11 @@ export default {
       alreadyPrice: 0, //已砍掉价格
       pricePercent: 0, //砍价进度条
       bargainUserInfo: [], //砍价 开启砍价用户信息
-      userBargainStatus: 2 //砍价状态
+      userBargainStatus: 2, //砍价状态
+      dargainQuota: 0, // 限量
+      productstock: 0, // 库存
+      bargainNum: 0, // 自己可以砍得次数
+      statusUser: false // 是否帮别人砍,没砍是true，砍了false
     };
   },
   computed: mapGetters(["userInfo", "isLogin"]),
@@ -271,6 +319,18 @@ export default {
     }, 500);
   },
   methods: {
+    //参与砍价
+    goParticipate() {
+      if (this.dargainQuota > 0 && this.productstock > 0) {
+        if (this.bargainPartake === this.userInfo.uid) this.getBargainStart();
+        else this.getBargainStartUser();
+        this.getBargainHelpCount();
+        if (this.dargainQuota > 0 && this.productstock > 0) this.active = true;
+      }
+    },
+    openAlone: function() {
+      this.$router.push({ path: "/detail/" + this.bargain.product_id });
+    },
     mountedStart: function() {
       var that = this;
       that.bargainId = that.$route.params.id;
@@ -288,16 +348,10 @@ export default {
       that.getBargainHelpCountStart();
       that.getBargainDetail();
       that.getBargainShare(0);
-      if (that.bargainPartake === that.userInfo.uid) that.getBargainStart();
-      else that.getBargainStartUser();
-      console.log(
-        typeof that.bargainPartake,
-        that.bargainPartake,
-        typeof that.userInfo.uid,
-        that.userInfo.uid,
-        that.userBargainStatus,
-        that.surplusPrice
-      );
+      if (that.bargainPartake !== that.userInfo.uid) that.getBargainStartUser();
+      // if (that.bargainPartake === that.userInfo.uid && that.active)
+      //   that.getBargainStart();
+      // else that.getBargainStartUser();
     },
     setOpenShare: function() {
       var that = this;
@@ -395,13 +449,19 @@ export default {
       getBargainDetail(that.bargainId)
         .then(res => {
           that.$set(that, "bargain", res.data.bargain);
+          that.dargainQuota = that.bargain.attr.quota || 0;
+          that.productstock = that.bargain.attr.product_stock
+            ? that.bargain.attr.product_stock
+            : 0;
+          that.bargainNum = that.bargain.bargain_num;
           that.updateTitle();
           that.datatime = that.bargain.stop_time;
           that.getBargainHelpCount();
           that.setOpenShare();
         })
-        .catch(res => {
-          that.$dialog.error(res.msg);
+        .catch(err => {
+          that.$dialog.error(err.msg);
+          that.$router.go(-1);
         });
     },
     //开启砍价
@@ -411,6 +471,7 @@ export default {
         .then(() => {
           that.bargainPartake = that.userInfo.uid;
           that.setOpenShare();
+          // if (this.surplusPrice > 0 && this.userBargainStatus === 1)
           that.getBargainHelp();
         })
         .catch(res => {
@@ -512,6 +573,7 @@ export default {
     },
     getBargainHelpCount: function() {
       var that = this;
+      that.helpListLoading = true;
       getBargainHelpCount({
         bargainId: that.bargainId,
         bargainUserUid: that.bargainPartake
@@ -522,7 +584,9 @@ export default {
           that.surplusPrice = res.data.price;
           that.alreadyPrice = res.data.alreadyPrice;
           that.pricePercent = res.data.pricePercent;
+          that.statusUser = res.data.userBargainStatus;
           that.price = (that.bargain.price - that.alreadyPrice).toFixed(2);
+          that.helpListLoading = false;
         })
         .catch(() => {
           that.bargainPartake = that.userInfo.uid;
@@ -555,3 +619,33 @@ export default {
   }
 };
 </script>
+<style scoped>
+.bargainBnt_hui {
+  font-size: 0.3rem;
+  font-weight: bold;
+  color: #fff;
+  width: 6rem;
+  height: 0.8rem;
+  border-radius: 0.4rem;
+  background: #bbb;
+  text-align: center;
+  line-height: 0.8rem;
+  margin-top: 0.32rem;
+}
+.bargain_view {
+  width: 1.8rem;
+  height: 0.48rem;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  border-radius: 0 0 0.06rem 0.06rem;
+  position: absolute;
+  bottom: 0;
+  font-size: 0.22rem;
+  color: #fff;
+  text-align: center;
+  line-height: 0.48rem;
+}
+.iconfonts {
+  font-size: 0.22rem;
+}
+</style>

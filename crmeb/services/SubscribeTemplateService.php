@@ -68,7 +68,7 @@ class SubscribeTemplateService implements ProviderInterface
     public static function setTemplateId($tempKey = '')
     {
         if ($tempKey == '') return '';
-        return RoutineTemplate::where('tempkey', $tempKey)->where('status', 1)->value('tempid');
+        return RoutineTemplate::where('tempkey', $tempKey)->where('type', 0)->where('status', 1)->value('tempid');
     }
 
 
@@ -80,35 +80,9 @@ class SubscribeTemplateService implements ProviderInterface
      * @param string $link 点击模板卡片后的跳转页面，仅限本小程序内的页面。支持带参数,（示例index?foo=bar）。该字段不填则模板无跳转
      * @return bool|\EasyWeChat\Support\Collection|null
      */
-    public static function sendTemplate(string $tempCode,string $openId,array $dataKey, string $link = '')
+    public static function sendTemplate(string $tempCode, string $openId, array $dataKey, string $link = '')
     {
         if (!$openId || !$tempCode) return false;
         return MiniProgramService::sendSubscribeTemlate($openId, trim(self::setTemplateId(self::getConstants($tempCode))), $dataKey, $link);
-    }
-
-    /**服务进度通知
-     * @param array $data
-     * @param null $url
-     * @param string $defaultColor
-     * @return bool
-     */
-    public static function sendAdminNoticeTemplate(array $data, $url = null, $defaultColor = '')
-    {
-        $adminIds = explode(',', trim(sys_config('site_store_admin_uids')));
-        $kefuIds = ServiceModel::where('notify', 1)->column('uid', 'uid');
-        if (empty($adminIds[0])) {
-            $adminList = array_unique($kefuIds);
-        } else {
-            $adminList = array_unique(array_merge($adminIds, $kefuIds));
-        }
-        if (!is_array($adminList) || empty($adminList)) return false;
-        foreach ($adminList as $uid) {
-            try {
-                $openid = WechatUser::uidToRoutineOpenid($uid);
-            } catch (\Exception $e) {
-                continue;
-            }
-//            self::sendTemplate($openid,self::ADMIN_NOTICE,$data,$url,$defaultColor);
-        }
     }
 }

@@ -4,7 +4,7 @@ namespace app\models\routine;
 
 use app\admin\model\wechat\StoreService as ServiceModel;
 use crmeb\basic\BaseModel;
-use crmeb\utils\Template;
+use crmeb\services\template\Template;
 use app\models\store\StoreOrder;
 use app\models\user\WechatUser;
 
@@ -26,7 +26,7 @@ class RoutineTemplate extends BaseModel
      * 模型名称
      * @var string
      */
-    protected $name = 'routine_template';
+    protected $name = 'template_message';
 
     /**
      * 确认收货
@@ -281,6 +281,7 @@ class RoutineTemplate extends BaseModel
     {
         $openid = WechatUser::uidToOpenid($uid);
         if (!$openid) return false;
-        return Template::instance()->subscribe()->setTemplateUrl($link)->setTemplateOpenId($openid)->setTemplateData($data)->setTemplateCode($tempCode)->send();
+        $template = new Template('subscribe');
+        return $template->to($openid)->url($link)->send($tempCode, $data);
     }
 }

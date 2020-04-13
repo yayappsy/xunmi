@@ -9,7 +9,10 @@
         </div>
       </div>
     </div>
-    <div class="remarks acea-row row-between-wrapper">
+    <div
+      class="remarks acea-row row-between-wrapper"
+      v-if="$route.params.goname != 'looks'"
+    >
       <span class="iconfont icon-zhinengkefu-"></span>
       <input
         type="button"
@@ -145,7 +148,10 @@
       </div>
     </div>
     <div style="height:1.2rem;"></div>
-    <div class="footer acea-row row-right row-middle">
+    <div
+      class="footer acea-row row-right row-middle"
+      v-if="$route.params.goname != 'looks'"
+    >
       <div class="more"></div>
       <div class="bnt cancel" @click="modify(0)" v-if="types == 0">
         一键改价

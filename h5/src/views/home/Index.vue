@@ -2,7 +2,7 @@
   <div class="index" v-cloak>
     <div
       class="follow acea-row row-between-wrapper"
-      v-if="followHid && followUrl && !subscribe && isWeixin"
+      v-if="followHid && isWeixin && isLogin"
     >
       <div>点击“立即关注”即可关注公众号</div>
       <div class="acea-row row-middle">
@@ -23,12 +23,7 @@
     <div class="slider-banner banner">
       <swiper :options="swiperOption" v-if="banner.length > 0">
         <swiper-slide v-for="(item, index) in banner" :key="index">
-          <router-link
-            :to="item.wap_url ? item.wap_url : ''"
-            class="search acea-row row-middle"
-          >
-            <img :src="item.pic" />
-          </router-link>
+          <img :src="item.pic" />
         </swiper-slide>
         <div class="swiper-pagination paginationBanner" slot="pagination"></div>
       </swiper>
@@ -229,13 +224,28 @@
             v-for="(item, index) in info.firstList"
             :key="index"
           >
-            <router-link :to="{ path: '/detail/' + item.id }">
+            <div @click="goDetail(item)">
               <div class="img-box">
                 <img :src="item.image" />
+                <span
+                  class="pictrue_log_medium pictrue_log_class"
+                  v-if="item.activity && item.activity.type === '1'"
+                  >秒杀</span
+                >
+                <span
+                  class="pictrue_log_medium pictrue_log_class"
+                  v-if="item.activity && item.activity.type === '2'"
+                  >砍价</span
+                >
+                <span
+                  class="pictrue_log_medium pictrue_log_class"
+                  v-if="item.activity && item.activity.type === '3'"
+                  >拼团</span
+                >
               </div>
               <div class="pro-info line1">{{ item.store_name }}</div>
               <div class="money font-color-red">￥{{ item.price }}</div>
-            </router-link>
+            </div>
           </swiper-slide>
         </swiper>
       </div>
@@ -259,6 +269,22 @@
       @close="couponClose"
     ></Coupon-window>
     <div style="height:1.2rem;"></div>
+    <div>
+      <iframe
+        v-if="mapKey && !isWeixin"
+        ref="geoPage"
+        width="0"
+        height="0"
+        frameborder="0"
+        scrolling="no"
+        :src="
+          'https://apis.map.qq.com/tools/geolocation?key=' +
+            mapKey +
+            '&referer=myapp'
+        "
+      >
+      </iframe>
+    </div>
   </div>
 </template>
 <script>
@@ -269,11 +295,15 @@ import PromotionGood from "@components/PromotionGood";
 import CouponWindow from "@components/CouponWindow";
 import { getHomeData, getShare, follow } from "@api/public";
 import cookie from "@utils/store/cookie";
-import { openShareAll } from "@libs/wechat";
+import { openShareAll, wxShowLocation } from "@libs/wechat";
 import { isWeixin } from "@utils/index";
-
+import { goShopDetail } from "@libs/order";
+import { mapGetters } from "vuex";
 const HAS_COUPON_WINDOW = "has_coupon_window";
-
+const LONGITUDE = "user_longitude";
+const LATITUDE = "user_latitude";
+const MAPKEY = "mapKey";
+let vm = null;
 export default {
   name: "Index",
   components: {
@@ -284,13 +314,14 @@ export default {
     CouponWindow
   },
   props: {},
+  computed: mapGetters(["isLogin"]),
   data: function() {
     return {
       newGoodsBananr: "",
       isWeixin: isWeixin(),
       followUrl: "",
       subscribe: false,
-      followHid: true,
+      followHid: false,
       followCode: false,
       showCoupon: false,
       logoUrl: "",
@@ -321,7 +352,13 @@ export default {
         loop: true,
         speed: 1000,
         observer: true,
-        observeParents: true
+        observeParents: true,
+        on: {
+          tap: function() {
+            const realIndex = this.realIndex;
+            vm.goUrl(realIndex);
+          }
+        }
       },
       swiperRoll: {
         direction: "vertical",
@@ -361,12 +398,22 @@ export default {
         slidesPerView: "auto",
         observer: true,
         observeParents: true
-      }
+      },
+      mapKey: ""
     };
   },
+  created() {
+    vm = this;
+    if (this.isLogin === false) {
+      this.followHid = false;
+    }
+  },
   mounted: function() {
+    this.getFollow();
     let that = this;
     getHomeData().then(res => {
+      that.mapKey = res.data.tengxun_map_key;
+      cookie.set(MAPKEY, that.mapKey);
       that.logoUrl = res.data.logoUrl;
       that.newGoodsBananr = res.data.newGoodsBananr;
       that.$set(that, "banner", res.data.banner);
@@ -386,15 +433,73 @@ export default {
       );
       that.$set(that, "benefit", res.data.benefit);
       that.$set(that, "couponList", res.data.couponList);
-      that.subscribe = res.data.subscribe;
+      if (that.isLogin) {
+        that.subscribe = res.data.subscribe;
+        if (!that.subscribe && that.followUrl) {
+          setTimeout(function() {
+            that.followHid = true;
+          }, 200);
+        } else {
+          that.followHid = false;
+        }
+      } else {
+        that.followHid = false;
+      }
+      if (res.data.site_name) document.title = res.data.site_name;
       that.setOpenShare();
       this.showCoupon =
         !cookie.has(HAS_COUPON_WINDOW) &&
         res.data.couponList.some(coupon => coupon.is_use);
+      if (!cookie.get(LATITUDE) && !cookie.get(LONGITUDE)) this.getWXLocation();
     });
-    this.getFollow();
   },
   methods: {
+    // 轮播图跳转
+    goUrl(index) {
+      let url = this.banner[index].wap_url;
+      let newStr = url.indexOf("http") === 0;
+      if (newStr) {
+        window.location.href = url;
+      } else {
+        this.$router.push({
+          path: url
+        });
+      }
+    },
+    // 商品详情跳转
+    goDetail(item) {
+      goShopDetail(item).then(() => {
+        this.$router.push({ path: "/detail/" + item.id });
+      });
+    },
+    getWXLocation() {
+      if (isWeixin()) {
+        wxShowLocation();
+      } else {
+        if (!this.mapKey)
+          console.log("暂无法使用查看地图，请配置您的腾讯地图key");
+        let loc;
+        // if (_this.$route.params.mapKey) _this.locationShow = true;
+        //监听定位组件的message事件
+        window.addEventListener(
+          "message",
+          function(event) {
+            loc = event.data; // 接收位置信息 LONGITUDE
+            console.log("location", loc);
+            if (loc && loc.module == "geolocation") {
+              cookie.set(LATITUDE, loc.lat);
+              cookie.set(LONGITUDE, loc.lng);
+            } else {
+              cookie.remove(LATITUDE);
+              cookie.remove(LONGITUDE);
+              //定位组件在定位失败后，也会触发message, event.data为null
+              console.log("定位失败");
+            }
+          },
+          false
+        );
+      }
+    },
     closeFollow() {
       this.followHid = false;
     },
@@ -434,9 +539,13 @@ export default {
 };
 </script>
 <style scoped>
+[v-cloak] {
+  display: none;
+}
 .index {
   background-color: #fff;
 }
+
 .index .follow {
   z-index: 100000;
 }

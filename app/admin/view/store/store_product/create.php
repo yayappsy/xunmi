@@ -1580,7 +1580,7 @@
                 that.getRuleList(1);
             }
             $(that.$refs.filElem).change(function () {
-                var inputFile = this.$refs.filElem.files[0];
+                var inputFile = that.$refs.filElem.files[0];
                 that.requestPost(that.U({c:"widget.video",a:'get_signature'})).then(function (res) {
                     AdminUpload.upload(res.data.uploadType,{
                         token: res.data.uploadToken || '',

@@ -1260,7 +1260,8 @@
                 if (this.videoLink) {
                     this.formData.video_link = this.videoLink;
                 } else {
-                    $(this.$refs.filElem).click();
+                    //$(this.$refs.filElem).click();
+                    this.$refs.filElem.dispatchEvent(new MouseEvent('click'))
                 }
             },
             delVideo: function () {
@@ -1579,8 +1580,9 @@
             window.successFun = function(){
                 that.getRuleList(1);
             }
-            $(that.$refs.filElem).change(function () {
-                var inputFile = that.$refs.filElem.files[0];
+            var inputFile = this.$refs.filElem.files[0];
+            $(inputFile).change(function () {
+                //var inputFile = this.$refs.filElem.files[0];
                 that.requestPost(that.U({c:"widget.video",a:'get_signature'})).then(function (res) {
                     AdminUpload.upload(res.data.uploadType,{
                         token: res.data.uploadToken || '',

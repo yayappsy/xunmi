@@ -96,7 +96,7 @@
         var that = this, file = that.config.file, suffix = file.name.substr(file.name.indexOf(".")),
             storeAs = this.uploadName() + suffix;
         return new Promise(function (resolve, reject) {
-            var client = new OSS.Wrapper({
+            var client = new OSS({
                 region: that.config.region,
                 accessKeyId: that.config.accessKeyId,
                 accessKeySecret: that.config.accessKeySecret,

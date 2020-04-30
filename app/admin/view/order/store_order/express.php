@@ -42,8 +42,8 @@
                     {volist name="express.result.list" id="vo"}
                     <li class="clearfix">
                         <div class="right-wrapper fl">
-                            <p>{$vo.status}</p>
-                            <span>{$vo.time}</span>
+                            <p>{$vo.AcceptStation}</p>
+                            <span>{$vo.AcceptTime}</span>
                         </div>
                     </li>
                     {/volist}

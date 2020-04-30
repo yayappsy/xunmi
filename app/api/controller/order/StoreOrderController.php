@@ -471,7 +471,9 @@ class StoreOrderController
         $cacheName = $uni . $order['delivery_id'];
         $result = CacheService::get($cacheName, null);
         if ($result === NULL) {
-            $result = ExpressService::query($order['delivery_id']);
+            //$result = ExpressService::query($order['delivery_id']);
+            $shipperCode=Db::table('eb_express')->where('name', $order['delivery_name'])->value('code');
+            $result = ExpressService::query($order['delivery_id'],$shipperCode);
             if (is_array($result) &&
                 isset($result['result']) &&
                 isset($result['result']['deliverystatus']) &&

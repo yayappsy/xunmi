@@ -109,6 +109,22 @@ class Kuaidi100Api {
         return $res_arr;
     }
 
+    #修改订单
+    static function cancel($accessToken, $orderList) {
+        $timestamp = self::msectime();
+        $data = array(
+            "appid"=>sys_config("appKey"),
+            "access_token"=>$accessToken,
+            "timestamp"=>$timestamp,
+            "orderList"=>$orderList
+        );
+        $sign = self::generateSign($data);
+        $data['sign'] = $sign;
+        $res = self::https_request("https://b.kuaidi100.com/v6/open/api/cancel", $data);
+        $res_arr = json_decode($res,true);
+        return $res_arr;
+    }
+
     #生成快递打印地址
     static function quickPrint($accessToken, $printList) {
         $timestamp = self::msectime();

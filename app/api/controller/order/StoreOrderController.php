@@ -20,7 +20,6 @@ use app\models\store\{
     StorePink,
     StoreProductReply
 };
-use app\admin\controller\order\Kuaidi100Api;
 use app\models\system\SystemStore;
 use app\models\user\UserAddress;
 use app\models\user\UserLevel;
@@ -32,6 +31,7 @@ use crmeb\services\{
     UtilService
 };
 use think\facade\Db;
+use app\models\store\Kuaidi100Api;
 
 /**
  * 订单类
@@ -606,8 +606,10 @@ class StoreOrderController
         if ($data['refund_reason_wap_img']) $data['refund_reason_wap_img'] = explode(',', $data['refund_reason_wap_img']);
         if (!$uni || $data['text'] == '') return app('json')->fail('参数错误!');
         $res = StoreOrder::orderApplyRefund($uni, $request->uid(), $data['text'], $data['refund_reason_wap_explain'], $data['refund_reason_wap_img']);
-        if ($res)
+        if ($res){
+            Kuaidi100Api::cancel(sys_config("kuaidi_token"), $uni);
             return app('json')->successful('提交申请成功');
+        }
         else
             return app('json')->fail(StoreOrder::getErrorInfo());
     }

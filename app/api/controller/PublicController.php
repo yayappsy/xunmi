@@ -19,6 +19,7 @@ use crmeb\services\UtilService;
 use crmeb\services\workerman\ChannelService;
 use think\facade\Cache;
 use crmeb\services\upload\Upload;
+use app\models\store\Kuaidi100Api;
 
 /**
  * 公共类
@@ -70,6 +71,30 @@ class PublicController
         $tengxun_map_key = sys_config('tengxun_map_key');
         return app('json')->successful(compact('banner', 'menus', 'roll', 'info', 'activity', 'lovely', 'benefit', 'likeInfo', 'logoUrl', 'couponList', 'site_name', 'subscribe', 'newGoodsBananr', 'tengxun_map_key'));
     }
+
+    /**
+     * 快递100用户（自己）授权成功后接收code，获取到accessToken=1f5446a23e6640c28964ebce4e358ba7   过期时间 2021-05-30
+     * @param Request $request
+     * @param $code
+     */
+    public function saveCode(Request $request,$code)
+    {
+        $accessToken = Kuaidi100Api::accessToken($code);
+        return app('json')->successful($accessToken);
+    }
+
+    /**
+     * 快递100用户（自己）授权页面
+     * @param Request $request
+     * @param $code
+     */
+    public function get100Page(Request $request)
+    {
+        $authorize = Kuaidi100Api::authorize();
+        return app('json')->successful($authorize);
+    }
+
+
 
     /**
      * 获取分享配置

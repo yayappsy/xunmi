@@ -20,6 +20,7 @@ use app\models\store\{
     StorePink,
     StoreProductReply
 };
+use app\admin\controller\order\Kuaidi100Api;
 use app\models\system\SystemStore;
 use app\models\user\UserAddress;
 use app\models\user\UserLevel;

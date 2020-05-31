@@ -9,6 +9,7 @@ namespace app\models\store;
 
 use app\admin\model\system\ShippingTemplatesFree;
 use app\admin\model\system\ShippingTemplatesRegion;
+use app\api\controller\order\StoreOrderController;
 use crmeb\basic\BaseModel;
 use think\facade\Cache;
 use crmeb\traits\ModelTrait;
@@ -25,6 +26,9 @@ use crmeb\repositories\{
     GoodsRepository, PaymentRepositories, OrderRepository, ShortLetterRepositories, UserRepository
 };
 use app\admin\model\system\ShippingTemplates;
+
+use app\models\store\Kuaidi100Api;
+
 
 /**
  * TODO 订单Model
@@ -755,10 +759,94 @@ class StoreOrder extends BaseModel
         $now_money = User::where('uid',$order['uid'])->value('now_money');
         UserBill::expend('购买商品', $order['uid'], 'now_money', 'pay_money', $order['pay_price'], $order['id'], $now_money, '支付' . floatval($order['pay_price']) . '元购买商品');
         //支付成功后
+        StoreOrder::printFaceOrder($orderId);
         event('OrderPaySuccess', [$order, $formId]);
         $res = $res1 && $resPink;
         return false !== $res;
     }
+
+    /**
+     * //调用快递100API，登录管家就可以看到订单，用于打印面单
+     * @param $orderId
+     * @return bool
+     */
+    public static function printFaceOrder($orderId)
+    {
+//        $orderInfo = StoreOrder::where('order_id', $orderId)->find();
+//        $cartIds = StoreCart::getCartIdsProduct($orderInfo['cart_id']);
+//
+//        foreach ($cartIds as $k => $cartId) {
+//            $productName = StoreProduct::getProductField($cartId, 'store_name');
+//            print_r($productName);
+//        }
+//        $remark = $orderInfo['mark'];
+//        $realName = $orderInfo['real_name'];
+//        $userPhone = $orderInfo['user_phone'];
+//        $user_address = $orderInfo['user_address'];
+
+        $order = StoreOrder::getAdminOrderDetail($orderId, 'id,uid,order_id,add_time,status,total_num,total_price,total_postage,pay_price,pay_postage,paid,refund_status,remark,pink_id,combination_id,mark,seckill_id,bargain_id,delivery_type,pay_type,real_name,user_phone,user_address,coupon_price,freight_price,delivery_name,delivery_type,delivery_id');
+        if (!$order) return app('json')->fail('订单不存在');
+        $order = $order->toArray();
+        $orderInfo = StoreOrder::tidyAdminOrder([$order], true)[0];
+        unset($orderInfo['uid'], $orderInfo['seckill_id'], $orderInfo['pink_id'], $orderInfo['combination_id'], $orderInfo['bargain_id'], $orderInfo['status'], $orderInfo['total_postage']);
+        $remark = $orderInfo['mark'];
+        $realName = $orderInfo['real_name'];
+        $userPhone = $orderInfo['user_phone'];
+        $user_address = $orderInfo['user_address'];
+        $productsInfo = $orderInfo['_info'];
+        $count = count($productsInfo);
+        $cargo = "";
+        for ($i = 0; $i < $count; $i++)
+        {
+            //echo var_dump($de_json);
+
+            $record = $productsInfo[$i]['cart_info'];
+            $storeName = $record["productInfo"]["store_name"];
+            $cartNum = $record["cart_num"];
+            $cargo = $cargo.$storeName."【".$cartNum."】 \n";
+        }
+
+        $orderData = array(
+            "recMobile"=>$userPhone,
+            "recTel"=>"",
+            "recName"=>$realName,
+            "recAddr"=>$user_address,
+            "reccountry"=>"中国",
+            "sendMobile"=>"18500525284",
+            "sendTel"=>"",
+            "sendName"=>"中农寻蜜人生",
+            "sendAddr"=>"山东省菏泽市巨野县新客运站东门",
+            "orderNum"=>$orderId,
+            "cargo"=>$cargo,
+            "kuaidiCom"=>"",
+            "weight"=>"1",
+            "valins"=>"",
+            "collection"=>"",
+            "payment"=>"",
+            "comment"=>$remark,
+            "recCompany"=>"",
+            "sendCompany"=>"",
+//            "items"=>array(
+//                "itemName"=>"小米 MIX3",
+//                "itemSpec"=>"",
+//                "itemCount"=>"2",
+//                "itemUnit"=>"件",
+//                "itemOuterId"=>"",
+//            ),
+        );
+
+        $authorize = kuaidi100Api::authorize();//生成快递100受权登录页面
+//        var_dump(Kuaidi100Api::accessToken(''));
+//        var_dump(Kuaidi100Api::refreshToken(''));
+//        echo Kuaidi100Api::quickPrint('', '123');
+//        var_dump(Kuaidi100Api::autoPrint('', '123'));
+        $accessToken = sys_config("kuaidi_token");
+        Kuaidi100Api::send($accessToken, $orderData);
+//        var_dump(Kuaidi100Api::update('', $orderData));
+//        echo Kuaidi100Api::callbackVerify(json_decode('{"sign":"F01FAFE9DE72160C65B30483690600F5","timestamp":12346789,"data":"{\"message\":\"成功\",\"orderNum\":\"123456\",\"status\":\"200\"}","appid":"","openid":"654321","type":"SEND"}', true));
+        return true;
+    }
+
 
     /*
      * 线下支付消息通知

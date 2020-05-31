@@ -416,6 +416,8 @@
                     ,auto:true
                     ,size: 2097152 //限制文件大小，单位 KB
                     ,done: function(res){
+                        console.log("res:"+res);
+                        console.log("res:"+res.msg);
                         layList.layer.msg(res.msg,{time:3000});
                         that.getImageList();
                     }

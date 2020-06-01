@@ -164,9 +164,11 @@ Route::group(function () {
 Route::group(function () {
     //公共类
     Route::get('index', 'PublicController/index')->name('index');//首页
+    Route::get('search/keyword', 'PublicController/search')->name('searchKeyword');//热门搜索关键字获取
+    //快递100
     Route::post('saveCode', 'PublicController/saveCode')->name('index');//快递100用户授权，通过code获取accessToken(有效期1年)
     Route::get('get100Page', 'PublicController/get100Page')->name('index');//快递100用户授权页面
-    Route::get('search/keyword', 'PublicController/search')->name('searchKeyword');//热门搜索关键字获取
+    Route::post('back', 'PublicController/back')->name('back');//快递100回调页面
     //产品分类类
     Route::get('category', 'store.CategoryController/category')->name('category');
     //产品类

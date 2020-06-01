@@ -772,7 +772,7 @@ class StoreOrder extends BaseModel
      */
     public static function printFaceOrder($orderId)
     {
-//        $orderInfo = StoreOrder::where('order_id', $orderId)->find();
+        $orderInfo = StoreOrder::where('order_id', $orderId)->find();
 //        $cartIds = StoreCart::getCartIdsProduct($orderInfo['cart_id']);
 //
 //        foreach ($cartIds as $k => $cartId) {
@@ -835,7 +835,7 @@ class StoreOrder extends BaseModel
 //            ),
         );
 
-        $authorize = kuaidi100Api::authorize();//生成快递100受权登录页面
+//        $authorize = kuaidi100Api::authorize();//生成快递100受权登录页面
 //        var_dump(Kuaidi100Api::accessToken(''));
 //        var_dump(Kuaidi100Api::refreshToken(''));
 //        echo Kuaidi100Api::quickPrint('', '123');

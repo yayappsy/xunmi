@@ -2,9 +2,12 @@
 
 namespace app\api\controller;
 
+use app\admin\model\order\StoreOrder as StoreOrderModel;
+use app\admin\model\order\StoreOrderStatus;
 use app\admin\model\system\SystemAttachment;
 use app\models\store\StoreCategory;
 use app\models\store\StoreCouponIssue;
+use app\models\store\StoreOrder;
 use app\models\store\StoreProduct;
 use app\models\store\StoreService;
 use app\models\system\Express;
@@ -15,7 +18,9 @@ use app\models\user\UserBill;
 use app\models\user\WechatUser;
 use app\Request;
 use crmeb\services\CacheService;
+use crmeb\services\JsonService as Json;
 use crmeb\services\UtilService;
+use crmeb\services\UtilService as Util;
 use crmeb\services\workerman\ChannelService;
 use think\facade\Cache;
 use crmeb\services\upload\Upload;
@@ -73,6 +78,17 @@ class PublicController
     }
 
     /**
+     * 快递100用户（自己）授权页面
+     * @param Request $request
+     * @param $code
+     */
+    public function get100Page(Request $request)
+    {
+        $authorize = Kuaidi100Api::authorize();
+        return app('json')->successful($authorize);
+    }
+
+    /**
      * 快递100用户（自己）授权成功后接收code，获取到accessToken=1f5446a23e6640c28964ebce4e358ba7   过期时间 2021-05-30
      * @param Request $request
      * @param $code
@@ -83,15 +99,71 @@ class PublicController
         return app('json')->successful($accessToken);
     }
 
+
     /**
-     * 快递100用户（自己）授权页面
+     * 打印订单回传，并更新快递信息
      * @param Request $request
      * @param $code
      */
-    public function get100Page(Request $request)
+    public function back(Request $request,$appid,$openid,$data)
     {
-        $authorize = Kuaidi100Api::authorize();
-        return app('json')->successful($authorize);
+        if (strcmp($appid, sys_config("appKey")) != 0) {
+            return \json(array('status' => 200));
+        }
+        foreach ($data as $k => $v) {//批量发货
+            $v1 = $this->goHome($v["kuaidicom"], $v["kuaidinum"], $v["orderNum"]);
+        }
+        return \json(array('status' => 200));
+    }
+
+    /**
+     * 发货（待收货状态）
+     * @param $delivery_name
+     * @param $delivery_id
+     * @param $orderId
+     * @return string|void
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\DbException
+     * @throws \think\db\exception\ModelNotFoundException
+     */
+    protected function goHome($kuaidicom,$delivery_id,$orderId)
+    {
+        $orderInfo = StoreOrder::where('order_id', $orderId)->find();
+        $delivery_name = "";
+        if ($orderInfo == null) {
+            return true;
+        }
+        if ($orderInfo["status"] == "1") {
+            return true;
+        }
+        if ($kuaidicom == "shunfeng") {
+            $delivery_name = "顺丰速运";
+        }
+        if ($kuaidicom == "shentong") {
+            $delivery_name = "申通快递";
+        }
+        if ($kuaidicom == "zhongtong") {
+            $delivery_name = "中通快递";
+        }
+        if ($kuaidicom == "yuantong") {
+            $delivery_name = "圆通快递";
+        }
+
+        $data = array(
+            "type"=>1,
+            "delivery_name"=>$delivery_name,
+            "delivery_id"=>$delivery_id,
+            "sh_delivery_name"=>"",
+            "sh_delivery_id"=>""
+        );
+        $data['delivery_type'] = 'express';
+        if (!$data['delivery_name']) return Json::fail('请选择快递公司');
+        if (!$data['delivery_id']) return Json::fail('请输入快递单号');
+        $data['status'] = 1;
+        StoreOrderModel::edit($data, $orderInfo["id"]);
+        event('StoreProductOrderDeliveryGoodsAfter', [$data, $orderInfo["id"]]);
+        StoreOrderStatus::setStatus($orderInfo["id"], 'delivery_goods', '已发货 快递公司：' . $data['delivery_name'] . ' 快递单号：' . $data['delivery_id']);
+        return true;
     }
 
 
